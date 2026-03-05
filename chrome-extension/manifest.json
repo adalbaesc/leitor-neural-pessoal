@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Leitor Neural Pessoal",
+  "version": "1.0.0",
+  "description": "Captura URLs, textos e PDFs e envia para o Web App de leitura neural no Microsoft Edge.",
+  "permissions": [
+    "activeTab"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

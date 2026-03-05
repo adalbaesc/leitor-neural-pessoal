@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/* ── Custom Theme ── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-neural-50: #eef2ff;
+  --color-neural-100: #e0e7ff;
+  --color-neural-200: #c7d2fe;
+  --color-neural-300: #a5b4fc;
+  --color-neural-400: #818cf8;
+  --color-neural-500: #6366f1;
+  --color-neural-600: #4f46e5;
+  --color-neural-700: #4338ca;
+  --color-neural-800: #3730a3;
+  --color-neural-900: #1e1b4b;
+  --color-neural-950: #0f0d2e;
+  --color-surface: #161333;
+  --color-surface-alt: #1c1942;
+  --color-accent-cyan: #06b6d4;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #0b0920;
+  --foreground: #e2e8f0;
+}
+
+/* ── Base Styles ── */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+/* ── Karaoke Highlight ── */
+.sentence {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sentence:hover {
+  background-color: rgba(99, 102, 241, 0.1);
+}
+
+.sentence-active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(6, 182, 212, 0.2));
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+/* ── Glassmorphism Controls ── */
+.glass {
+  background: rgba(22, 19, 51, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+/* ── Animations ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.1) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* ── Loading Skeleton ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-alt) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ── Button States ── */
+.btn-neural {
+  background: linear-gradient(135deg, var(--color-neural-600), var(--color-neural-700));
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-neural:hover {
+  background: linear-gradient(135deg, var(--color-neural-500), var(--color-neural-600));
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-neural:active {
+  transform: translateY(0);
+}
+
+.btn-neural:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
