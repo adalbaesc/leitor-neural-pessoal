@@ -5,7 +5,7 @@
  * Usa o prefixo microsoft-edge: para forçar abertura no navegador Edge.
  */
 
-const WEB_APP_BASE = 'https://leitor-neural-pessoal.vercel.app';
+const WEB_APP_BASE = 'https://leitor-neural-pessoal-adalba.vercel.app';
 
 const statusEl = document.getElementById('status');
 
