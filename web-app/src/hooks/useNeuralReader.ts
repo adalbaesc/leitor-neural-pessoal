@@ -28,14 +28,23 @@ interface UseNeuralReaderReturn {
     speakFromIndex: (sentences: string[], index: number) => void;
 }
 
+const VOICE_KEY = "neural-reader-voice";
+const RATE_KEY = "neural-reader-rate";
+
 export function useNeuralReader(
     options: UseNeuralReaderOptions = {}
 ): UseNeuralReaderReturn {
     const { preferredLang = "pt-BR" } = options;
 
     const [voices, setVoices] = useState<VoiceInfo[]>([]);
-    const [selectedVoice, setSelectedVoice] = useState<VoiceInfo | null>(null);
-    const [rate, setRate] = useState(1.0);
+    const [selectedVoice, setSelectedVoiceState] = useState<VoiceInfo | null>(null);
+    const [rate, setRateState] = useState(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem(RATE_KEY);
+            return saved ? parseFloat(saved) : 1.0;
+        }
+        return 1.0;
+    });
     const [isPlaying, setIsPlaying] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [currentSentenceIndex, setCurrentSentenceIndex] = useState(-1);
@@ -43,6 +52,33 @@ export function useNeuralReader(
     const sentencesRef = useRef<string[]>([]);
     const currentIndexRef = useRef(0);
     const isStoppingRef = useRef(false);
+    const selectedVoiceRef = useRef<VoiceInfo | null>(null);
+    const rateRef = useRef(rate);
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        selectedVoiceRef.current = selectedVoice;
+    }, [selectedVoice]);
+
+    useEffect(() => {
+        rateRef.current = rate;
+    }, [rate]);
+
+    // ── Persist voice selection ──
+    const setSelectedVoice = useCallback((voice: VoiceInfo) => {
+        setSelectedVoiceState(voice);
+        if (typeof window !== "undefined") {
+            localStorage.setItem(VOICE_KEY, voice.name);
+        }
+    }, []);
+
+    // ── Persist rate ──
+    const setRate = useCallback((newRate: number) => {
+        setRateState(newRate);
+        if (typeof window !== "undefined") {
+            localStorage.setItem(RATE_KEY, String(newRate));
+        }
+    }, []);
 
     // ── Load available voices ──
     useEffect(() => {
@@ -60,8 +96,21 @@ export function useNeuralReader(
 
             setVoices(voiceInfos);
 
-            // Auto-select preferred voice
-            if (!selectedVoice) {
+            // Try to restore saved voice from localStorage
+            const savedVoiceName = typeof window !== "undefined"
+                ? localStorage.getItem(VOICE_KEY)
+                : null;
+
+            if (savedVoiceName) {
+                const savedVoice = voiceInfos.find((v) => v.name === savedVoiceName);
+                if (savedVoice) {
+                    setSelectedVoiceState(savedVoice);
+                    return;
+                }
+            }
+
+            // Auto-select preferred voice if no saved voice
+            if (!selectedVoiceRef.current) {
                 // Priority: Microsoft Neural pt-BR voices > any pt-BR voice > first voice
                 const neuralPtBr = voiceInfos.find(
                     (v) =>
@@ -71,13 +120,17 @@ export function useNeuralReader(
                 const anyPtBr = voiceInfos.find((v) => v.lang.startsWith("pt"));
                 const fallback = voiceInfos[0];
 
-                setSelectedVoice(neuralPtBr || anyPtBr || fallback);
+                const chosen = neuralPtBr || anyPtBr || fallback;
+                setSelectedVoiceState(chosen);
+                if (chosen && typeof window !== "undefined") {
+                    localStorage.setItem(VOICE_KEY, chosen.name);
+                }
             }
         };
 
         loadVoices();
 
-        // Chrome loads voices asynchronously
+        // Chrome/Edge loads voices asynchronously
         if (typeof window !== "undefined" && window.speechSynthesis) {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
@@ -104,12 +157,14 @@ export function useNeuralReader(
             const synth = window.speechSynthesis;
             const utterance = new SpeechSynthesisUtterance(sentences[index]);
 
-            if (selectedVoice) {
-                utterance.voice = selectedVoice.voice;
-                utterance.lang = selectedVoice.lang;
+            // Use ref to always get the latest voice (not stale closure)
+            const voice = selectedVoiceRef.current;
+            if (voice) {
+                utterance.voice = voice.voice;
+                utterance.lang = voice.lang;
             }
 
-            utterance.rate = rate;
+            utterance.rate = rateRef.current;
             utterance.pitch = 1;
 
             currentIndexRef.current = index;
@@ -126,14 +181,13 @@ export function useNeuralReader(
                     console.error("Speech error:", event.error);
                 }
                 if (!isStoppingRef.current) {
-                    // Try next sentence on error
                     speakSentence(sentences, index + 1);
                 }
             };
 
             synth.speak(utterance);
         },
-        [selectedVoice, rate]
+        [] // Using refs, no deps needed
     );
 
     // ── Public Controls ──

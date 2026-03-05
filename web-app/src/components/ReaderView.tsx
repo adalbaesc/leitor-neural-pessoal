@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNeuralReader } from "@/hooks/useNeuralReader";
 import KaraokeDisplay from "./KaraokeDisplay";
 
@@ -13,6 +13,7 @@ interface ReaderViewProps {
     onTranslate?: () => void;
     isTranslating?: boolean;
     showTranslateButton?: boolean;
+    autoPlay?: boolean;
 }
 
 export default function ReaderView({
@@ -24,6 +25,7 @@ export default function ReaderView({
     onTranslate,
     isTranslating = false,
     showTranslateButton = false,
+    autoPlay = true,
 }: ReaderViewProps) {
     const {
         voices,
@@ -42,6 +44,33 @@ export default function ReaderView({
     } = useNeuralReader();
 
     const [showVoicePanel, setShowVoicePanel] = useState(false);
+    const hasAutoPlayed = useRef(false);
+    const hasAutoTranslated = useRef(false);
+
+    // ── Auto-translate when foreign text is detected ──
+    useEffect(() => {
+        if (showTranslateButton && onTranslate && !hasAutoTranslated.current && !isTranslating) {
+            hasAutoTranslated.current = true;
+            onTranslate();
+        }
+    }, [showTranslateButton, onTranslate, isTranslating]);
+
+    // ── Auto-play when sentences are ready ──
+    useEffect(() => {
+        if (autoPlay && sentences.length > 0 && !hasAutoPlayed.current && !isPlaying && !isLoading && selectedVoice) {
+            hasAutoPlayed.current = true;
+            // Small delay to ensure voice is fully loaded
+            setTimeout(() => {
+                speak(sentences, 0);
+            }, 300);
+        }
+    }, [sentences, autoPlay, isPlaying, isLoading, selectedVoice, speak]);
+
+    // Reset auto-play flag when sentences change (new content)
+    useEffect(() => {
+        hasAutoPlayed.current = false;
+        hasAutoTranslated.current = false;
+    }, [title]); // Reset when title changes (new content loaded)
 
     const handlePlay = useCallback(() => {
         if (isPaused) {
@@ -72,12 +101,15 @@ export default function ReaderView({
     const otherVoices = voices.filter((v) => !v.lang.startsWith("pt"));
 
     // ── Loading State ──
-    if (isLoading) {
+    if (isLoading || isTranslating) {
         return (
             <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
                 <div className="space-y-4 animate-fade-in-up">
                     <div className="skeleton h-8 w-3/4" />
                     <div className="skeleton h-4 w-1/4" />
+                    <div className="text-sm text-gray-400 mt-2">
+                        {isTranslating ? "Traduzindo automaticamente..." : "Carregando conteúdo..."}
+                    </div>
                     <div className="mt-8 space-y-3">
                         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                             <div key={i} className="skeleton h-5" style={{ width: `${60 + Math.random() * 40}%` }} />
@@ -107,34 +139,6 @@ export default function ReaderView({
 
     return (
         <div className="relative">
-            {/* ── Translate Button ── */}
-            {showTranslateButton && onTranslate && (
-                <div className="max-w-3xl mx-auto px-4 sm:px-8 pt-4">
-                    <button
-                        onClick={onTranslate}
-                        disabled={isTranslating}
-                        className="btn-neural text-sm flex items-center gap-2"
-                    >
-                        {isTranslating ? (
-                            <>
-                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                                </svg>
-                                Traduzindo...
-                            </>
-                        ) : (
-                            <>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                                </svg>
-                                Traduzir para Português
-                            </>
-                        )}
-                    </button>
-                </div>
-            )}
-
             {/* ── Karaoke Text ── */}
             <KaraokeDisplay
                 sentences={sentences}

@@ -26,16 +26,32 @@ export default function PdfPage() {
             // Dynamic import of pdf.js (client-side only)
             const pdfjsLib = await import("pdfjs-dist");
 
-            // Use local worker file served from public/ directory
-            // Must set workerSrc BEFORE calling getDocument
-            pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-                "/pdf.worker.min.mjs",
-                window.location.origin
-            ).toString();
+            // Try to use the local worker file; if it fails, fall back to no-worker mode
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+                    "/pdf.worker.min.mjs",
+                    window.location.origin
+                ).toString();
+            } catch {
+                // Worker will fail gracefully, pdf.js falls back to main thread
+                console.warn("PDF worker not available, using main thread");
+            }
 
             // Read file
             const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            let pdf;
+            try {
+                pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            } catch {
+                // Fallback: disable worker and retry
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+                pdf = await pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    isEvalSupported: false,
+                    useWorkerFetch: false,
+                }).promise;
+            }
 
             let fullText = "";
 
