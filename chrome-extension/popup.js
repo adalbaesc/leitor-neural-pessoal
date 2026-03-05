@@ -5,14 +5,14 @@
  * Usa o prefixo microsoft-edge: para forçar abertura no navegador Edge.
  */
 
-const WEB_APP_BASE = 'https://localhost:3000';
+const WEB_APP_BASE = 'https://leitor-neural-pessoal.vercel.app';
 
 const statusEl = document.getElementById('status');
 
 function setStatus(message, type = 'info') {
   statusEl.textContent = message;
   statusEl.className = 'text-center text-xs py-1 transition-colors duration-300';
-  
+
   switch (type) {
     case 'success':
       statusEl.classList.add('text-green-400');
@@ -30,7 +30,7 @@ function setStatus(message, type = 'info') {
 
 function openInEdge(path) {
   const edgeUrl = `microsoft-edge:${WEB_APP_BASE}${path}`;
-  
+
   chrome.tabs.create({ url: edgeUrl }, (tab) => {
     if (chrome.runtime.lastError) {
       setStatus('Erro ao abrir o Edge. Verifique se está instalado.', 'error');
