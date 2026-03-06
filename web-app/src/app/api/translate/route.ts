@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 30; // Vercel function timeout
+
 const DEEPL_API_URL = "https://api-free.deepl.com/v2/translate";
 
 export async function POST(request: NextRequest) {

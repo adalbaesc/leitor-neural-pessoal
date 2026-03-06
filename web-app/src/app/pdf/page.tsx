@@ -3,39 +3,46 @@
 import { useState, useCallback, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
-import { splitIntoSentences, detectNonPortuguese } from "@/lib/textProcessor";
+import { splitIntoSentences, needsTranslation } from "@/lib/textProcessor";
 
 export default function PdfPage() {
     const [sentences, setSentences] = useState<string[]>([]);
-    const [rawText, setRawText] = useState("");
     const [fileName, setFileName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showTranslate, setShowTranslate] = useState(false);
-    const [isTranslating, setIsTranslating] = useState(false);
+    const [statusMessage, setStatusMessage] = useState("");
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const translateText = useCallback(async (text: string): Promise<string> => {
+        const res = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || "Erro na tradução.");
+        }
+
+        return data.translatedText;
+    }, []);
 
     const extractTextFromPdf = useCallback(async (file: File) => {
         setIsLoading(true);
         setError(null);
         setSentences([]);
         setFileName(file.name);
+        setStatusMessage("Lendo arquivo PDF...");
 
         try {
             // Dynamic import of pdf.js (client-side only)
             const pdfjsLib = await import("pdfjs-dist");
 
-            // Try to use the local worker file; if it fails, fall back to no-worker mode
-            try {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-                    "/pdf.worker.min.mjs",
-                    window.location.origin
-                ).toString();
-            } catch {
-                // Worker will fail gracefully, pdf.js falls back to main thread
-                console.warn("PDF worker not available, using main thread");
-            }
+            // Define remote reliable CDN worker src matching exact version
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
             // Read file
             const arrayBuffer = await file.arrayBuffer();
@@ -44,7 +51,8 @@ export default function PdfPage() {
             try {
                 pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             } catch {
-                // Fallback: disable worker and retry
+                // Fallback: disable worker and eval execution if standard loading fails
+                console.warn("PDF loader failed, trying fallback mode without worker...");
                 pdfjsLib.GlobalWorkerOptions.workerSrc = "";
                 pdf = await pdfjsLib.getDocument({
                     data: arrayBuffer,
@@ -54,6 +62,7 @@ export default function PdfPage() {
             }
 
             let fullText = "";
+            setStatusMessage("Extraindo texto das páginas...");
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
@@ -73,23 +82,38 @@ export default function PdfPage() {
 
             if (!cleanText) {
                 setError("Não foi possível extrair texto deste PDF. O arquivo pode conter apenas imagens.");
+                setIsLoading(false);
+                setStatusMessage("");
                 return;
             }
 
-            setRawText(cleanText);
-            const sents = splitIntoSentences(cleanText);
-            setSentences(sents);
-
-            if (detectNonPortuguese(cleanText)) {
-                setShowTranslate(true);
+            // Check if text needs translation
+            if (needsTranslation(cleanText)) {
+                setStatusMessage("Traduzindo para português...");
+                try {
+                    const translated = await translateText(cleanText);
+                    const sents = splitIntoSentences(translated);
+                    setSentences(sents);
+                } catch (translationError) {
+                    console.error("Translation failed:", translationError);
+                    // Fallback to original text if translation fails
+                    const sents = splitIntoSentences(cleanText);
+                    setSentences(sents);
+                }
+            } else {
+                // Already PT/ES
+                const sents = splitIntoSentences(cleanText);
+                setSentences(sents);
             }
+
         } catch (err) {
             console.error("Erro ao processar PDF:", err);
             setError("Erro ao processar o arquivo PDF. Verifique se o arquivo é válido.");
         } finally {
             setIsLoading(false);
+            setStatusMessage("");
         }
-    }, []);
+    }, [translateText]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -123,41 +147,10 @@ export default function PdfPage() {
 
     const handleReset = () => {
         setSentences([]);
-        setRawText("");
         setFileName("");
         setError(null);
-        setShowTranslate(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
-        }
-    };
-
-    const handleTranslate = async () => {
-        if (!rawText) return;
-
-        setIsTranslating(true);
-        try {
-            const res = await fetch("/api/translate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: rawText }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Erro na tradução.");
-                return;
-            }
-
-            const translatedSentences = splitIntoSentences(data.translatedText);
-            setSentences(translatedSentences);
-            setShowTranslate(false);
-        } catch (err) {
-            setError("Erro ao traduzir o texto.");
-            console.error(err);
-        } finally {
-            setIsTranslating(false);
         }
     };
 
@@ -177,7 +170,7 @@ export default function PdfPage() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Ler PDF</h1>
-                        <p className="text-gray-400">Faça upload de um arquivo PDF para extrair e ler o conteúdo.</p>
+                        <p className="text-gray-400">Faça upload de um arquivo PDF para extrair e ler o conteúdo. Traduções automáticas suportadas.</p>
                     </div>
 
                     {/* Drop Zone */}
@@ -238,15 +231,34 @@ export default function PdfPage() {
                         </button>
                     </div>
 
-                    <ReaderView
-                        sentences={sentences}
-                        title={fileName || "Documento PDF"}
-                        isLoading={isLoading}
-                        error={error}
-                        onTranslate={handleTranslate}
-                        isTranslating={isTranslating}
-                        showTranslateButton={showTranslate}
-                    />
+                    {/* Loading State during Translation or File Processing */}
+                    {isLoading || statusMessage ? (
+                        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
+                            <div className="space-y-4 animate-fade-in-up">
+                                <div className="skeleton h-8 w-3/4" />
+                                <div className="skeleton h-4 w-1/4" />
+                                <div className="flex items-center gap-3 mt-4">
+                                    <svg className="w-5 h-5 animate-spin text-neural-400" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                    </svg>
+                                    <span className="text-sm text-neural-300">{statusMessage}</span>
+                                </div>
+                                <div className="mt-8 space-y-3">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <div key={i} className="skeleton h-5" style={{ width: `${60 + Math.random() * 40}%` }} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <ReaderView
+                            sentences={sentences}
+                            title={fileName || "Documento PDF"}
+                            isLoading={false}
+                            error={error}
+                        />
+                    )}
                 </div>
             )}
         </main>
