@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractText, getDocumentProxy } from "unpdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,8 +17,25 @@ function isPdfUpload(fileName: string, mimeType: string) {
     );
 }
 
-function getErrorMessage(error: unknown) {
-    return error instanceof Error ? error.message : "Erro desconhecido ao extrair o PDF.";
+function getExtractionError(error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno ao extrair o PDF.";
+    const normalizedMessage = message.toLowerCase();
+
+    if (
+        normalizedMessage.includes("invalid pdf") ||
+        normalizedMessage.includes("malformed") ||
+        normalizedMessage.includes("unexpected server response")
+    ) {
+        return {
+            status: 400,
+            error: "Arquivo PDF invalido ou corrompido.",
+        };
+    }
+
+    return {
+        status: 500,
+        error: message,
+    };
 }
 
 export async function POST(request: NextRequest) {
@@ -26,52 +44,38 @@ export async function POST(request: NextRequest) {
         const file = formData.get("file");
 
         if (!file || typeof file === "string" || typeof file.arrayBuffer !== "function") {
-            return NextResponse.json({ error: "Arquivo PDF não enviado." }, { status: 400 });
+            return NextResponse.json({ error: "Arquivo PDF nao enviado." }, { status: 400 });
         }
 
         if (!isPdfUpload(file.name || "", file.type || "")) {
-            return NextResponse.json({ error: "Envie um arquivo PDF válido." }, { status: 400 });
+            return NextResponse.json({ error: "Envie um arquivo PDF valido." }, { status: 400 });
         }
 
-        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
         const data = new Uint8Array(await file.arrayBuffer());
-        const pdf = await pdfjsLib.getDocument({
-            data,
-            isEvalSupported: false,
-            useWorkerFetch: false,
-            disableFontFace: true,
-            useSystemFonts: true,
-        }).promise;
 
-        let fullText = "";
-
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-            const page = await pdf.getPage(pageNumber);
-            const textContent = await page.getTextContent();
-
-            const pageText = textContent.items
-                .map((item) => ("str" in item ? item.str : ""))
-                .join(" ");
-
-            fullText += `${pageText}\n\n`;
+        if (data.length === 0) {
+            return NextResponse.json({ error: "Arquivo PDF vazio." }, { status: 400 });
         }
 
-        const text = fullText.trim();
+        const pdf = await getDocumentProxy(data);
+        const extracted = await extractText(pdf, { mergePages: true });
+        const text = extracted.text.trim();
 
         if (!text) {
             return NextResponse.json(
-                { error: "Não foi possível extrair texto deste PDF. O arquivo pode conter apenas imagens." },
+                { error: "Nenhum texto extraivel foi encontrado neste PDF. O arquivo pode conter apenas imagens." },
                 { status: 422 }
             );
         }
 
         return NextResponse.json({
             text,
-            pages: pdf.numPages,
+            pages: extracted.totalPages,
             fileName: file.name || null,
         });
     } catch (error) {
         console.error("PDF extraction API error:", error);
-        return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+        const extractionError = getExtractionError(error);
+        return NextResponse.json({ error: extractionError.error }, { status: extractionError.status });
     }
 }

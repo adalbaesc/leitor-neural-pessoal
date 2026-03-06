@@ -61,7 +61,6 @@ async function extractPdfTextInBrowser(file: File) {
             for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
                 const page = await pdf.getPage(pageNumber);
                 const textContent = await page.getTextContent();
-
                 const pageText = textContent.items
                     .map((item) => ("str" in item ? item.str : ""))
                     .join(" ");
@@ -97,6 +96,18 @@ async function extractPdfTextOnServer(file: File) {
     return typeof data.text === "string" ? data.text.trim() : "";
 }
 
+function getPdfProcessingError(detail: string) {
+    if (!detail) {
+        return "Erro ao processar o arquivo PDF. Verifique se o arquivo e valido.";
+    }
+
+    if (detail.toLowerCase().includes("nenhum texto extraivel")) {
+        return detail;
+    }
+
+    return `Erro ao processar o arquivo PDF. ${detail}`;
+}
+
 export default function PdfPage() {
     const [sentences, setSentences] = useState<string[]>([]);
     const [rawText, setRawText] = useState("");
@@ -108,6 +119,9 @@ export default function PdfPage() {
     const [showTranslate, setShowTranslate] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [contentVersion, setContentVersion] = useState(0);
+    const [translationSuccessToken, setTranslationSuccessToken] = useState(0);
+    const [restartPlaybackToken, setRestartPlaybackToken] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const extractTextFromPdf = useCallback(async (file: File) => {
@@ -119,6 +133,7 @@ export default function PdfPage() {
         setRawText("");
         setShowTranslate(false);
         setStatusMessage("Lendo arquivo PDF...");
+        setContentVersion((current) => current + 1);
 
         try {
             let cleanText = "";
@@ -132,14 +147,14 @@ export default function PdfPage() {
             }
 
             if (!cleanText) {
-                setError("Não foi possível extrair texto deste PDF. O arquivo pode conter apenas imagens.");
+                setError("Nenhum texto extraivel foi encontrado neste PDF. O arquivo pode conter apenas imagens.");
                 return;
             }
 
             setRawText(cleanText);
 
             if (detectNonPortuguese(cleanText)) {
-                setStatusMessage("Traduzindo para português...");
+                setStatusMessage("Traduzindo para portugues...");
 
                 try {
                     const response = await fetch("/api/translate", {
@@ -150,17 +165,18 @@ export default function PdfPage() {
                     const data = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(data.error || "Erro na tradução.");
+                        throw new Error(data.error || "Erro na traducao.");
                     }
 
                     setSentences(splitIntoSentences(data.translatedText));
                     setShowTranslate(false);
+                    setTranslationSuccessToken((current) => current + 1);
                 } catch (translationError: unknown) {
                     console.error("Auto-translation failed:", translationError);
                     setSentences(splitIntoSentences(cleanText));
                     setShowTranslate(true);
                     setWarning(
-                        "A tradução automática falhou. O texto original foi carregado para leitura. " +
+                        "A traducao automatica falhou. O texto original foi carregado para leitura. " +
                             getErrorMessage(translationError)
                     );
                 }
@@ -170,12 +186,7 @@ export default function PdfPage() {
             }
         } catch (processingError) {
             console.error("Erro ao processar PDF:", processingError);
-            const detail = getErrorMessage(processingError);
-            setError(
-                detail
-                    ? `Erro ao processar o arquivo PDF. ${detail}`
-                    : "Erro ao processar o arquivo PDF. Verifique se o arquivo é válido."
-            );
+            setError(getPdfProcessingError(getErrorMessage(processingError)));
         } finally {
             setIsLoading(false);
             setStatusMessage("");
@@ -191,7 +202,7 @@ export default function PdfPage() {
         }
 
         if (file) {
-            setError("Por favor, selecione um arquivo PDF válido.");
+            setError("Por favor, selecione um arquivo PDF valido.");
             setWarning(null);
         }
     };
@@ -207,7 +218,7 @@ export default function PdfPage() {
             return;
         }
 
-        setError("Por favor, solte um arquivo PDF válido.");
+        setError("Por favor, solte um arquivo PDF valido.");
         setWarning(null);
     };
 
@@ -228,13 +239,16 @@ export default function PdfPage() {
         setWarning(null);
         setStatusMessage("");
         setShowTranslate(false);
+        setContentVersion((current) => current + 1);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
     };
 
-    const handleTranslate = async () => {
-        if (!rawText) return;
+    const handleTranslate = async ({ restartPlayback }: { restartPlayback: boolean }) => {
+        if (!rawText) {
+            return;
+        }
 
         setIsTranslating(true);
         setError(null);
@@ -250,14 +264,18 @@ export default function PdfPage() {
             const data = await response.json();
 
             if (!response.ok) {
-                setWarning(data.error || "Erro na tradução.");
+                setWarning(data.error || "Erro na traducao.");
                 return;
             }
 
             setSentences(splitIntoSentences(data.translatedText));
             setShowTranslate(false);
+            setTranslationSuccessToken((current) => current + 1);
+            if (restartPlayback) {
+                setRestartPlaybackToken((current) => current + 1);
+            }
         } catch (translationError: unknown) {
-            setWarning("Não foi possível traduzir o texto agora. " + getErrorMessage(translationError));
+            setWarning("Nao foi possivel traduzir o texto agora. " + getErrorMessage(translationError));
             console.error(translationError);
         } finally {
             setIsTranslating(false);
@@ -292,7 +310,7 @@ export default function PdfPage() {
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Ler PDF</h1>
                         <p className="text-gray-400">
-                            Faça upload de um arquivo PDF para extrair e ler o conteúdo. Traduções automáticas suportadas.
+                            Faca upload de um arquivo PDF para extrair e ler o conteudo. Traducoes automaticas suportadas.
                         </p>
                     </div>
 
@@ -392,6 +410,9 @@ export default function PdfPage() {
                             isLoading={false}
                             error={error}
                             warning={warning}
+                            contentKey={`pdf-${contentVersion}`}
+                            translationSuccessToken={translationSuccessToken}
+                            restartPlaybackToken={restartPlaybackToken}
                             onTranslate={handleTranslate}
                             isTranslating={isTranslating}
                             showTranslateButton={showTranslate}

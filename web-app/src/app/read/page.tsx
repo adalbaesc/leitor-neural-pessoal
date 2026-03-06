@@ -21,7 +21,9 @@ function ReadPageContent() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [warning, setWarning] = useState<string | null>(null);
-
+    const [contentVersion, setContentVersion] = useState(0);
+    const [translationSuccessToken, setTranslationSuccessToken] = useState(0);
+    const [restartPlaybackToken, setRestartPlaybackToken] = useState(0);
     const [showTranslate, setShowTranslate] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
     const [manualUrl, setManualUrl] = useState("");
@@ -32,7 +34,10 @@ function ReadPageContent() {
         setWarning(null);
         setSentences([]);
         setRawText("");
+        setTitle("");
+        setSiteName("");
         setShowTranslate(false);
+        setContentVersion((current) => current + 1);
 
         try {
             const res = await fetch(`/api/fetch-article?url=${encodeURIComponent(url)}`);
@@ -58,17 +63,18 @@ function ReadPageContent() {
                     const translationData = await translationResponse.json();
 
                     if (!translationResponse.ok) {
-                        throw new Error(translationData.error || "Erro na tradução.");
+                        throw new Error(translationData.error || "Erro na traducao.");
                     }
 
                     setSentences(splitIntoSentences(translationData.translatedText));
                     setShowTranslate(false);
+                    setTranslationSuccessToken((current) => current + 1);
                 } catch (translationError: unknown) {
                     console.error("Auto-translation failed:", translationError);
                     setSentences(splitIntoSentences(cleanText));
                     setShowTranslate(true);
                     setWarning(
-                        "A tradução automática falhou. O texto original foi carregado para leitura. " +
+                        "A traducao automatica falhou. O texto original foi carregado para leitura. " +
                             getErrorMessage(translationError)
                     );
                 }
@@ -77,7 +83,7 @@ function ReadPageContent() {
                 setShowTranslate(false);
             }
         } catch (fetchError) {
-            setError("Não foi possível conectar ao servidor.");
+            setError("Nao foi possivel conectar ao servidor.");
             console.error(fetchError);
         } finally {
             setIsLoading(false);
@@ -97,8 +103,10 @@ function ReadPageContent() {
         }
     };
 
-    const handleTranslate = async () => {
-        if (!rawText) return;
+    const handleTranslate = async ({ restartPlayback }: { restartPlayback: boolean }) => {
+        if (!rawText) {
+            return;
+        }
 
         setIsTranslating(true);
         setError(null);
@@ -114,14 +122,18 @@ function ReadPageContent() {
             const data = await res.json();
 
             if (!res.ok) {
-                setWarning(data.error || "Erro na tradução.");
+                setWarning(data.error || "Erro na traducao.");
                 return;
             }
 
             setSentences(splitIntoSentences(data.translatedText));
             setShowTranslate(false);
+            setTranslationSuccessToken((current) => current + 1);
+            if (restartPlayback) {
+                setRestartPlaybackToken((current) => current + 1);
+            }
         } catch (translationError: unknown) {
-            setWarning("Não foi possível traduzir o texto agora. " + getErrorMessage(translationError));
+            setWarning("Nao foi possivel traduzir o texto agora. " + getErrorMessage(translationError));
             console.error(translationError);
         } finally {
             setIsTranslating(false);
@@ -153,7 +165,7 @@ function ReadPageContent() {
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Ler URL</h1>
                         <p className="text-gray-400">
-                            Cole a URL de um artigo para extrair e ler o conteúdo. Traduções automáticas suportadas.
+                            Cole a URL de um artigo para extrair e ler o conteudo. Traducoes automaticas suportadas.
                         </p>
                     </div>
 
@@ -181,6 +193,9 @@ function ReadPageContent() {
                 isLoading={isLoading}
                 error={error}
                 warning={warning}
+                contentKey={`read-${contentVersion}`}
+                translationSuccessToken={translationSuccessToken}
+                restartPlaybackToken={restartPlaybackToken}
                 onTranslate={handleTranslate}
                 isTranslating={isTranslating}
                 showTranslateButton={showTranslate}

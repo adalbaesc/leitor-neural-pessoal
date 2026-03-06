@@ -18,15 +18,21 @@ export default function PastePage() {
     const [isTranslating, setIsTranslating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [warning, setWarning] = useState<string | null>(null);
+    const [contentVersion, setContentVersion] = useState(0);
+    const [translationSuccessToken, setTranslationSuccessToken] = useState(0);
+    const [restartPlaybackToken, setRestartPlaybackToken] = useState(0);
 
     const handleSubmit = async () => {
-        if (!inputText.trim()) return;
+        if (!inputText.trim()) {
+            return;
+        }
 
         const text = inputText.trim();
         setRawText(text);
         setShowEditor(false);
         setError(null);
         setWarning(null);
+        setContentVersion((current) => current + 1);
 
         if (detectNonPortuguese(text)) {
             try {
@@ -37,16 +43,19 @@ export default function PastePage() {
                 });
                 const data = await res.json();
 
-                if (!res.ok) throw new Error(data.error || "Erro na tradução.");
+                if (!res.ok) {
+                    throw new Error(data.error || "Erro na traducao.");
+                }
 
                 setSentences(splitIntoSentences(data.translatedText));
                 setShowTranslate(false);
+                setTranslationSuccessToken((current) => current + 1);
             } catch (translationError: unknown) {
                 console.error("Auto-translation failed:", translationError);
                 setSentences(splitIntoSentences(text));
                 setShowTranslate(true);
                 setWarning(
-                    "A tradução automática falhou. O texto original foi carregado para leitura. " +
+                    "A traducao automatica falhou. O texto original foi carregado para leitura. " +
                         getErrorMessage(translationError)
                 );
             }
@@ -64,10 +73,13 @@ export default function PastePage() {
         setShowTranslate(false);
         setError(null);
         setWarning(null);
+        setContentVersion((current) => current + 1);
     }, []);
 
-    const handleTranslate = async () => {
-        if (!rawText) return;
+    const handleTranslate = async ({ restartPlayback }: { restartPlayback: boolean }) => {
+        if (!rawText) {
+            return;
+        }
 
         setIsTranslating(true);
         setError(null);
@@ -83,14 +95,18 @@ export default function PastePage() {
             const data = await res.json();
 
             if (!res.ok) {
-                setWarning(data.error || "Erro na tradução.");
+                setWarning(data.error || "Erro na traducao.");
                 return;
             }
 
             setSentences(splitIntoSentences(data.translatedText));
             setShowTranslate(false);
+            setTranslationSuccessToken((current) => current + 1);
+            if (restartPlayback) {
+                setRestartPlaybackToken((current) => current + 1);
+            }
         } catch (translationError: unknown) {
-            setWarning("Não foi possível traduzir o texto agora. " + getErrorMessage(translationError));
+            setWarning("Nao foi possivel traduzir o texto agora. " + getErrorMessage(translationError));
             console.error(translationError);
         } finally {
             setIsTranslating(false);
@@ -122,7 +138,7 @@ export default function PastePage() {
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Colar Texto</h1>
                         <p className="text-gray-400">
-                            Cole ou digite o texto que você deseja ouvir. Traduções automáticas suportadas.
+                            Cole ou digite o texto que voce deseja ouvir. Traducoes automaticas suportadas.
                         </p>
                     </div>
 
@@ -138,7 +154,7 @@ export default function PastePage() {
                     <div className="flex items-center justify-between mt-4">
                         <span className="text-xs text-gray-500">
                             {inputText.length > 0
-                                ? `${inputText.length} caracteres • ~${splitIntoSentences(inputText).length} frases`
+                                ? `${inputText.length} caracteres - ~${splitIntoSentences(inputText).length} frases`
                                 : "Nenhum texto inserido"}
                         </span>
                         <button
@@ -177,6 +193,9 @@ export default function PastePage() {
                         isLoading={false}
                         error={error}
                         warning={warning}
+                        contentKey={`paste-${contentVersion}`}
+                        translationSuccessToken={translationSuccessToken}
+                        restartPlaybackToken={restartPlaybackToken}
                         onTranslate={handleTranslate}
                         isTranslating={isTranslating}
                         showTranslateButton={showTranslate}

@@ -12,7 +12,10 @@ interface ReaderViewProps {
     error?: string | null;
     warning?: string | null;
     autoPlay?: boolean;
-    onTranslate?: () => void;
+    contentKey?: string | number;
+    translationSuccessToken?: number;
+    restartPlaybackToken?: number;
+    onTranslate?: (options: { restartPlayback: boolean }) => void | Promise<void>;
     isTranslating?: boolean;
     showTranslateButton?: boolean;
 }
@@ -26,7 +29,10 @@ export default function ReaderView({
     isLoading = false,
     error = null,
     warning = null,
-    autoPlay = true,
+    autoPlay = false,
+    contentKey,
+    translationSuccessToken = 0,
+    restartPlaybackToken = 0,
     onTranslate,
     isTranslating = false,
     showTranslateButton = false,
@@ -35,6 +41,7 @@ export default function ReaderView({
         voices,
         selectedVoice,
         setSelectedVoice,
+        selectBestVoiceForLang,
         rate,
         setRate,
         isPlaying,
@@ -48,6 +55,7 @@ export default function ReaderView({
     } = useNeuralReader();
 
     const hasAutoPlayed = useRef(false);
+    const previousContentKeyRef = useRef<string | number | undefined>(undefined);
 
     useEffect(() => {
         if (
@@ -71,6 +79,44 @@ export default function ReaderView({
         hasAutoPlayed.current = false;
     }, [title]);
 
+    useEffect(() => {
+        const previousContentKey = previousContentKeyRef.current;
+        previousContentKeyRef.current = contentKey;
+
+        if (previousContentKey !== undefined && previousContentKey !== contentKey) {
+            hasAutoPlayed.current = false;
+            stop();
+        }
+    }, [contentKey, stop]);
+
+    useEffect(() => {
+        if (translationSuccessToken > 0) {
+            selectBestVoiceForLang("pt-BR");
+        }
+    }, [translationSuccessToken, selectBestVoiceForLang]);
+
+    useEffect(() => {
+        if (
+            restartPlaybackToken > 0 &&
+            sentences.length > 0 &&
+            !isLoading &&
+            !isTranslating &&
+            !error
+        ) {
+            hasAutoPlayed.current = true;
+            selectBestVoiceForLang("pt-BR");
+            speak(sentences, 0);
+        }
+    }, [
+        restartPlaybackToken,
+        sentences,
+        isLoading,
+        isTranslating,
+        error,
+        selectBestVoiceForLang,
+        speak,
+    ]);
+
     const handlePlay = useCallback(() => {
         if (isPaused) {
             resume();
@@ -86,6 +132,16 @@ export default function ReaderView({
     const handleStop = useCallback(() => {
         stop();
     }, [stop]);
+
+    const handleTranslate = useCallback(async () => {
+        if (!onTranslate) {
+            return;
+        }
+
+        await onTranslate({
+            restartPlayback: isPlaying || isPaused,
+        });
+    }, [isPaused, isPlaying, onTranslate]);
 
     const handleSentenceClick = useCallback(
         (index: number) => {
@@ -187,7 +243,7 @@ export default function ReaderView({
                     {showTranslateButton && onTranslate && (
                         <div className="flex-shrink-0">
                             <button
-                                onClick={onTranslate}
+                                onClick={handleTranslate}
                                 disabled={isTranslating}
                                 className="px-4 py-2 rounded-xl bg-neural-500/10 border border-neural-500/20 text-sm font-medium text-neural-300 hover:bg-neural-500/20 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
                             >
@@ -261,17 +317,25 @@ export default function ReaderView({
                             </button>
                         )}
 
-                        <button
-                            id="btn-stop"
-                            onClick={handleStop}
-                            disabled={!isPlaying && !isPaused}
-                            className="w-9 h-9 rounded-full bg-surface hover:bg-surface-alt border border-neural-500/20 flex items-center justify-center text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
-                            title="Parar"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                <rect x="6" y="6" width="12" height="12" rx="2" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                id="btn-stop"
+                                onClick={handleStop}
+                                disabled={!isPlaying && !isPaused}
+                                className="w-9 h-9 rounded-full bg-surface hover:bg-surface-alt border border-neural-500/20 flex items-center justify-center text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+                                title="Parar"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                                </svg>
+                            </button>
+
+                            {(isPlaying || isPaused) && (
+                                <span className="text-xs font-medium text-gray-300 whitespace-nowrap">
+                                    Parar audio
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2">
