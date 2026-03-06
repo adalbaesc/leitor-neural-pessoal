@@ -253,6 +253,15 @@ export function useNeuralReader(
         [speakSentence]
     );
 
+    // ── Cleanup on unmount ──
+    useEffect(() => {
+        return () => {
+            const synth = window.speechSynthesis;
+            isStoppingRef.current = true;
+            synth.cancel();
+        };
+    }, []);
+
     return {
         voices,
         selectedVoice,
