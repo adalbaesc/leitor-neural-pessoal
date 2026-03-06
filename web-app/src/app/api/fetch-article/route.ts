@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 
 export const maxDuration = 30; // Vercel function timeout
 
@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
                 Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Accept-Encoding": "gzip, deflate, br",
                 "Cache-Control": "no-cache",
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest) {
                 "Sec-Fetch-User": "?1",
                 "Upgrade-Insecure-Requests": "1",
             },
-            signal: AbortSignal.timeout(25000),
+            signal: AbortSignal.timeout(20000),
             redirect: "follow",
         });
 
@@ -53,17 +52,20 @@ export async function GET(request: NextRequest) {
 
         const html = await response.text();
 
-        // Parse with JSDOM + Readability
-        const dom = new JSDOM(html, { url });
-        const reader = new Readability(dom.window.document);
+        // Parse with linkedom (lightweight, serverless-compatible) + Readability
+        const { document } = parseHTML(html);
+
+        // Set the URL for Readability
+        // linkedom doesn't support setting URL directly on document, but Readability can use it
+        const reader = new Readability(document as unknown as Document, { charThreshold: 50 });
         const article = reader.parse();
 
         if (!article) {
             // Fallback: try to extract body text directly
-            const bodyText = dom.window.document.body?.textContent?.trim();
-            if (bodyText && bodyText.length > 100) {
+            const bodyText = document.body?.textContent?.trim();
+            if (bodyText && bodyText.length > 50) {
                 return NextResponse.json({
-                    title: dom.window.document.title || "Sem título",
+                    title: document.title || "Sem título",
                     content: bodyText,
                     htmlContent: "",
                     siteName: "",

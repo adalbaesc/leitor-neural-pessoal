@@ -1,7 +1,7 @@
 /**
- * Leitor Neural Pessoal - Chrome/Edge Extension
+ * Leitor Neural Pessoal - Chrome Extension
  * Captura URLs, textos e PDFs e envia para o Web App.
- * Abre diretamente na aba atual do Edge (sem prompt).
+ * Usa o prefixo microsoft-edge: para forçar abertura no Edge (vozes neurais).
  */
 
 const WEB_APP_BASE = 'https://leitor-neural-pessoal-adalba.vercel.app';
@@ -14,6 +14,16 @@ function showStatus(msg) {
   setTimeout(() => {
     statusEl.classList.remove('visible');
   }, 3000);
+}
+
+/**
+ * Abre a URL forçando no Microsoft Edge.
+ * Usa o protocolo microsoft-edge: que o Windows reconhece.
+ */
+function openInEdge(url) {
+  // O prefixo microsoft-edge: abre a URL no Edge automaticamente
+  window.open(`microsoft-edge:${url}`, '_blank');
+  window.close();
 }
 
 // ── Ler Aba Atual ──
@@ -33,10 +43,7 @@ document.getElementById('btn-read-tab').addEventListener('click', async () => {
     }
 
     const readUrl = `${WEB_APP_BASE}/read?url=${encodeURIComponent(tab.url)}`;
-
-    // Open directly in a new tab (no microsoft-edge: prefix needed since we're already in Edge)
-    chrome.tabs.create({ url: readUrl });
-    window.close();
+    openInEdge(readUrl);
   } catch (err) {
     showStatus('Erro ao capturar a aba.');
     console.error(err);
@@ -45,12 +52,10 @@ document.getElementById('btn-read-tab').addEventListener('click', async () => {
 
 // ── Colar Texto ──
 document.getElementById('btn-paste').addEventListener('click', () => {
-  chrome.tabs.create({ url: `${WEB_APP_BASE}/paste` });
-  window.close();
+  openInEdge(`${WEB_APP_BASE}/paste`);
 });
 
 // ── Ler PDF ──
 document.getElementById('btn-pdf').addEventListener('click', () => {
-  chrome.tabs.create({ url: `${WEB_APP_BASE}/pdf` });
-  window.close();
+  openInEdge(`${WEB_APP_BASE}/pdf`);
 });
