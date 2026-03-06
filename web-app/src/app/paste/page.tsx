@@ -3,67 +3,67 @@
 import { useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
-import { splitIntoSentences, needsTranslation } from "@/lib/textProcessor";
+import { splitIntoSentences, detectNonPortuguese } from "@/lib/textProcessor";
 
 export default function PastePage() {
     const [sentences, setSentences] = useState<string[]>([]);
     const [rawText, setRawText] = useState("");
     const [inputText, setInputText] = useState("");
     const [showEditor, setShowEditor] = useState(true);
+    const [showTranslate, setShowTranslate] = useState(false);
     const [isTranslating, setIsTranslating] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [statusMessage, setStatusMessage] = useState("");
 
-    const translateText = useCallback(async (text: string): Promise<string> => {
-        const res = await fetch("/api/translate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-            throw new Error(data.error || "Erro na tradução.");
-        }
-
-        return data.translatedText;
-    }, []);
-
-    const handleSubmit = useCallback(async () => {
+    const handleSubmit = useCallback(() => {
         if (!inputText.trim()) return;
 
-        setError(null);
+        const sents = splitIntoSentences(inputText.trim());
+        setSentences(sents);
         setRawText(inputText.trim());
         setShowEditor(false);
 
-        if (needsTranslation(inputText)) {
-            setIsTranslating(true);
-            setStatusMessage("Traduzindo para português...");
-            try {
-                const translated = await translateText(inputText.trim());
-                const sents = splitIntoSentences(translated);
-                setSentences(sents);
-            } catch (err) {
-                console.error("Translation failed:", err);
-                // Fallback to original
-                setSentences(splitIntoSentences(inputText.trim()));
-            } finally {
-                setIsTranslating(false);
-                setStatusMessage("");
-            }
-        } else {
-            setSentences(splitIntoSentences(inputText.trim()));
+        if (detectNonPortuguese(inputText)) {
+            setShowTranslate(true);
         }
-    }, [inputText, translateText]);
+    }, [inputText]);
 
     const handleReset = useCallback(() => {
         setSentences([]);
         setRawText("");
         setInputText("");
         setShowEditor(true);
+        setShowTranslate(false);
         setError(null);
     }, []);
+
+    const handleTranslate = async () => {
+        if (!rawText) return;
+
+        setIsTranslating(true);
+        try {
+            const res = await fetch("/api/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: rawText }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || "Erro na tradução.");
+                return;
+            }
+
+            const translatedSentences = splitIntoSentences(data.translatedText);
+            setSentences(translatedSentences);
+            setShowTranslate(false);
+        } catch (err) {
+            setError("Erro ao traduzir o texto.");
+            console.error(err);
+        } finally {
+            setIsTranslating(false);
+        }
+    };
 
     return (
         <main className="min-h-screen">
@@ -79,7 +79,7 @@ export default function PastePage() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Colar Texto</h1>
-                        <p className="text-gray-400">Cole ou digite o texto que você deseja ouvir. Traduções automáticas suportadas.</p>
+                        <p className="text-gray-400">Cole ou digite o texto que você deseja ouvir.</p>
                     </div>
 
                     {/* Textarea */}
@@ -125,34 +125,15 @@ export default function PastePage() {
                         </button>
                     </div>
 
-                    {/* Loading State during Translation */}
-                    {isTranslating ? (
-                        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
-                            <div className="space-y-4 animate-fade-in-up">
-                                <div className="skeleton h-8 w-3/4" />
-                                <div className="skeleton h-4 w-1/4" />
-                                <div className="flex items-center gap-3 mt-4">
-                                    <svg className="w-5 h-5 animate-spin text-neural-400" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                                    </svg>
-                                    <span className="text-sm text-neural-300">{statusMessage}</span>
-                                </div>
-                                <div className="mt-8 space-y-3">
-                                    {[1, 2, 3, 4, 5].map((i) => (
-                                        <div key={i} className="skeleton h-5" style={{ width: `${60 + Math.random() * 40}%` }} />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <ReaderView
-                            sentences={sentences}
-                            title="Texto Colado"
-                            isLoading={false}
-                            error={error}
-                        />
-                    )}
+                    <ReaderView
+                        sentences={sentences}
+                        title="Texto Colado"
+                        isLoading={false}
+                        error={error}
+                        onTranslate={handleTranslate}
+                        isTranslating={isTranslating}
+                        showTranslateButton={showTranslate}
+                    />
                 </div>
             )}
         </main>

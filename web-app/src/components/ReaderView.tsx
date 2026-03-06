@@ -11,6 +11,9 @@ interface ReaderViewProps {
     isLoading?: boolean;
     error?: string | null;
     autoPlay?: boolean;
+    onTranslate?: () => void;
+    isTranslating?: boolean;
+    showTranslateButton?: boolean;
 }
 
 export default function ReaderView({
@@ -20,6 +23,9 @@ export default function ReaderView({
     isLoading = false,
     error = null,
     autoPlay = true,
+    onTranslate,
+    isTranslating = false,
+    showTranslateButton = false,
 }: ReaderViewProps) {
     const {
         voices,
@@ -135,6 +141,34 @@ export default function ReaderView({
             {/* ── Fixed Bottom Controls ── */}
             <div className="glass fixed bottom-0 left-0 right-0 z-50 px-4 py-3 sm:px-8">
                 <div className="max-w-4xl mx-auto flex flex-wrap items-center gap-3 sm:gap-4">
+                    {showTranslateButton && onTranslate && (
+                        <div className="flex-shrink-0">
+                            <button
+                                onClick={onTranslate}
+                                disabled={isTranslating}
+                                className="px-4 py-2 rounded-xl bg-neural-500/10 border border-neural-500/20 text-sm font-medium text-neural-300 hover:bg-neural-500/20 hover:text-white transition-all 
+                                disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isTranslating ? (
+                                    <>
+                                        <svg className="w-4 h-4 animate-spin text-neural-400" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                                            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                        </svg>
+                                        Traduzindo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                                        </svg>
+                                        Traduzir Texto
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
                     {/* Playback Buttons */}
                     <div className="flex items-center gap-2">
                         {/* Play / Pause toggle */}
