@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
 import { splitIntoSentences, detectNonPortuguese } from "@/lib/textProcessor";
@@ -19,6 +19,82 @@ function isPdfFile(file: File) {
 
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : "";
+}
+
+async function extractPdfTextInBrowser(file: File) {
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const data = new Uint8Array(await file.arrayBuffer());
+
+    const attempts = [
+        {
+            label: "worker",
+            configure: () => {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.mjs`;
+            },
+            options: {
+                data,
+            },
+        },
+        {
+            label: "compatibility",
+            configure: () => {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+            },
+            options: {
+                data,
+                isEvalSupported: false,
+                useWorkerFetch: false,
+                disableFontFace: true,
+                useSystemFonts: true,
+            },
+        },
+    ] as const;
+
+    let lastError: unknown = null;
+
+    for (const attempt of attempts) {
+        try {
+            attempt.configure();
+            const pdf = await pdfjsLib.getDocument(attempt.options).promise;
+            let fullText = "";
+
+            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+                const page = await pdf.getPage(pageNumber);
+                const textContent = await page.getTextContent();
+
+                const pageText = textContent.items
+                    .map((item) => ("str" in item ? item.str : ""))
+                    .join(" ");
+
+                fullText += `${pageText}\n\n`;
+            }
+
+            return fullText.trim();
+        } catch (error) {
+            lastError = error;
+            console.warn(`PDF browser extraction failed (${attempt.label}).`, error);
+        }
+    }
+
+    throw lastError ?? new Error("Falha ao extrair texto do PDF no navegador.");
+}
+
+async function extractPdfTextOnServer(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/extract-pdf", {
+        method: "POST",
+        body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.error || "Falha ao extrair texto do PDF no servidor.");
+    }
+
+    return typeof data.text === "string" ? data.text.trim() : "";
 }
 
 export default function PdfPage() {
@@ -45,42 +121,15 @@ export default function PdfPage() {
         setStatusMessage("Lendo arquivo PDF...");
 
         try {
-            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.mjs`;
+            let cleanText = "";
 
-            const arrayBuffer = await file.arrayBuffer();
-
-            let pdf;
             try {
-                pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            } catch (workerError) {
-                console.warn("PDF loader failed, trying fallback mode without worker...", workerError);
-                pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-                pdf = await pdfjsLib.getDocument({
-                    data: arrayBuffer,
-                    isEvalSupported: false,
-                    useWorkerFetch: false,
-                }).promise;
+                cleanText = await extractPdfTextInBrowser(file);
+            } catch (browserError) {
+                console.warn("Browser PDF extraction failed, trying server fallback...", browserError);
+                setStatusMessage("Tentando modo de compatibilidade...");
+                cleanText = await extractPdfTextOnServer(file);
             }
-
-            let fullText = "";
-            setStatusMessage("Extraindo texto...");
-
-            for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-                const page = await pdf.getPage(pageNumber);
-                const textContent = await page.getTextContent();
-
-                const pageText = textContent.items
-                    .map((item) => {
-                        if ("str" in item) return item.str;
-                        return "";
-                    })
-                    .join(" ");
-
-                fullText += `${pageText}\n\n`;
-            }
-
-            const cleanText = fullText.trim();
 
             if (!cleanText) {
                 setError("Não foi possível extrair texto deste PDF. O arquivo pode conter apenas imagens.");
@@ -93,14 +142,16 @@ export default function PdfPage() {
                 setStatusMessage("Traduzindo para português...");
 
                 try {
-                    const res = await fetch("/api/translate", {
+                    const response = await fetch("/api/translate", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ text: cleanText }),
                     });
-                    const data = await res.json();
+                    const data = await response.json();
 
-                    if (!res.ok) throw new Error(data.error || "Erro na tradução.");
+                    if (!response.ok) {
+                        throw new Error(data.error || "Erro na tradução.");
+                    }
 
                     setSentences(splitIntoSentences(data.translatedText));
                     setShowTranslate(false);
@@ -119,7 +170,12 @@ export default function PdfPage() {
             }
         } catch (processingError) {
             console.error("Erro ao processar PDF:", processingError);
-            setError("Erro ao processar o arquivo PDF. Verifique se o arquivo é válido.");
+            const detail = getErrorMessage(processingError);
+            setError(
+                detail
+                    ? `Erro ao processar o arquivo PDF. ${detail}`
+                    : "Erro ao processar o arquivo PDF. Verifique se o arquivo é válido."
+            );
         } finally {
             setIsLoading(false);
             setStatusMessage("");
@@ -185,15 +241,15 @@ export default function PdfPage() {
         setWarning(null);
 
         try {
-            const res = await fetch("/api/translate", {
+            const response = await fetch("/api/translate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text: rawText }),
             });
 
-            const data = await res.json();
+            const data = await response.json();
 
-            if (!res.ok) {
+            if (!response.ok) {
                 setWarning(data.error || "Erro na tradução.");
                 return;
             }
