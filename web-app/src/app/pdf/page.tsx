@@ -11,6 +11,7 @@ export default function PdfPage() {
     const [fileName, setFileName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [statusMessage, setStatusMessage] = useState("");
 
     // Manual translate state
     const [showTranslate, setShowTranslate] = useState(false);
@@ -26,6 +27,7 @@ export default function PdfPage() {
         setFileName(file.name);
         setRawText("");
         setShowTranslate(false);
+        setStatusMessage("Lendo arquivo PDF...");
 
         try {
             // Dynamic import of pdf.js (client-side only)
@@ -52,6 +54,7 @@ export default function PdfPage() {
             }
 
             let fullText = "";
+            setStatusMessage("Extraindo texto...");
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
@@ -72,14 +75,36 @@ export default function PdfPage() {
             if (!cleanText) {
                 setError("Não foi possível extrair texto deste PDF. O arquivo pode conter apenas imagens.");
                 setIsLoading(false);
+                setStatusMessage("");
                 return;
             }
 
             setRawText(cleanText);
-            setSentences(splitIntoSentences(cleanText));
 
             if (detectNonPortuguese(cleanText)) {
-                setShowTranslate(true);
+                setStatusMessage("Traduzindo para português...");
+                try {
+                    const res = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: cleanText }),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok) throw new Error(data.error || "Erro na tradução.");
+
+                    setSentences(splitIntoSentences(data.translatedText));
+                    setShowTranslate(false);
+                } catch (trError: any) {
+                    console.error("Auto-translation failed:", trError);
+                    // Fallback to English sentences
+                    setSentences(splitIntoSentences(cleanText));
+                    setShowTranslate(true); // allow manual translation
+                    setError("A tradução automática falhou. Verifique a API na Vercel. " + (trError.message || ""));
+                }
+            } else {
+                setSentences(splitIntoSentences(cleanText));
+                setShowTranslate(false);
             }
 
         } catch (err) {
@@ -87,6 +112,7 @@ export default function PdfPage() {
             setError("Erro ao processar o arquivo PDF. Verifique se o arquivo é válido.");
         } finally {
             setIsLoading(false);
+            setStatusMessage("");
         }
     }, []);
 
@@ -135,6 +161,7 @@ export default function PdfPage() {
         if (!rawText) return;
 
         setIsTranslating(true);
+        setError(null);
         try {
             const res = await fetch("/api/translate", {
                 method: "POST",
@@ -152,8 +179,8 @@ export default function PdfPage() {
             const translatedSentences = splitIntoSentences(data.translatedText);
             setSentences(translatedSentences);
             setShowTranslate(false);
-        } catch (err) {
-            setError("Erro ao traduzir o texto.");
+        } catch (err: any) {
+            setError("Erro ao traduzir o texto. " + (err.message || ""));
             console.error(err);
         } finally {
             setIsTranslating(false);
@@ -176,7 +203,7 @@ export default function PdfPage() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Ler PDF</h1>
-                        <p className="text-gray-400">Faça upload de um arquivo PDF para extrair e ler o conteúdo.</p>
+                        <p className="text-gray-400">Faça upload de um arquivo PDF para extrair e ler o conteúdo. Traduções automáticas suportadas.</p>
                     </div>
 
                     {/* Drop Zone */}
@@ -230,16 +257,36 @@ export default function PdfPage() {
                         </button>
                     </div>
 
-                    {/* Display Error if any, otherwise hide the custom text when loading */}
-                    <ReaderView
-                        sentences={sentences}
-                        title={fileName || "Documento PDF"}
-                        isLoading={isLoading}
-                        error={error}
-                        onTranslate={handleTranslate}
-                        isTranslating={isTranslating}
-                        showTranslateButton={showTranslate}
-                    />
+                    {isLoading || statusMessage ? (
+                        <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
+                            <div className="space-y-4 animate-fade-in-up">
+                                <div className="skeleton h-8 w-3/4" />
+                                <div className="skeleton h-4 w-1/4" />
+                                <div className="flex items-center gap-3 mt-4">
+                                    <svg className="w-5 h-5 animate-spin text-neural-400" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                    </svg>
+                                    <span className="text-sm text-neural-300">{statusMessage}</span>
+                                </div>
+                                <div className="mt-8 space-y-3">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <div key={i} className="skeleton h-5" style={{ width: `${60 + Math.random() * 40}%` }} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <ReaderView
+                            sentences={sentences}
+                            title={fileName || "Documento PDF"}
+                            isLoading={false}
+                            error={error}
+                            onTranslate={handleTranslate}
+                            isTranslating={isTranslating}
+                            showTranslateButton={showTranslate}
+                        />
+                    )}
                 </div>
             )}
         </main>

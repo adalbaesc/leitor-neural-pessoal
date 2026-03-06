@@ -48,14 +48,14 @@ export default function ReaderView({
 
     // ── Auto-play when sentences are ready ──
     useEffect(() => {
-        if (autoPlay && sentences.length > 0 && !hasAutoPlayed.current && !isPlaying && !isLoading && selectedVoice) {
+        if (autoPlay && sentences.length > 0 && !hasAutoPlayed.current && !isPlaying && !isLoading && !isTranslating && !error && selectedVoice) {
             hasAutoPlayed.current = true;
             // Small delay to ensure voice is fully loaded
             setTimeout(() => {
                 speak(sentences, 0);
             }, 300);
         }
-    }, [sentences, autoPlay, isPlaying, isLoading, selectedVoice, speak]);
+    }, [sentences, autoPlay, isPlaying, isLoading, isTranslating, error, selectedVoice, speak]);
 
     // Reset auto-play flag when sentences change (new content)
     useEffect(() => {

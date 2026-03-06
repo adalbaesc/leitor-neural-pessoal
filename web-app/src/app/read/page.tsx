@@ -45,10 +45,31 @@ function ReadPageContent() {
             setSiteName(data.siteName || "");
 
             setRawText(cleanText);
-            setSentences(splitIntoSentences(cleanText));
 
             if (detectNonPortuguese(cleanText)) {
-                setShowTranslate(true);
+                // Try to auto-translate
+                try {
+                    const trRes = await fetch("/api/translate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: cleanText }),
+                    });
+                    const trData = await trRes.json();
+
+                    if (!trRes.ok) throw new Error(trData.error || "Erro na tradução.");
+
+                    setSentences(splitIntoSentences(trData.translatedText));
+                    setShowTranslate(false);
+                } catch (trError: any) {
+                    console.error("Auto-translation failed:", trError);
+                    // Fallback to English sentences
+                    setSentences(splitIntoSentences(cleanText));
+                    setShowTranslate(true);
+                    setError("A tradução automática falhou. Verifique se a API do servidor da Vercel está configurada. " + (trError.message || ""));
+                }
+            } else {
+                setSentences(splitIntoSentences(cleanText));
+                setShowTranslate(false);
             }
         } catch (err) {
             setError("Não foi possível conectar ao servidor.");
@@ -76,6 +97,7 @@ function ReadPageContent() {
         if (!rawText) return;
 
         setIsTranslating(true);
+        setError(null);
         try {
             const res = await fetch("/api/translate", {
                 method: "POST",
@@ -93,8 +115,8 @@ function ReadPageContent() {
             const translatedSentences = splitIntoSentences(data.translatedText);
             setSentences(translatedSentences);
             setShowTranslate(false);
-        } catch (err) {
-            setError("Erro ao traduzir o texto.");
+        } catch (err: any) {
+            setError("Erro ao traduzir o texto. " + (err.message || ""));
             console.error(err);
         } finally {
             setIsTranslating(false);
@@ -115,7 +137,7 @@ function ReadPageContent() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Ler URL</h1>
-                        <p className="text-gray-400">Cole a URL de um artigo para extrair e ler o conteúdo.</p>
+                        <p className="text-gray-400">Cole a URL de um artigo para extrair e ler o conteúdo. Traduções automáticas suportadas.</p>
                     </div>
 
                     <form onSubmit={handleManualSubmit} className="flex gap-3">

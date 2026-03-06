@@ -14,18 +14,39 @@ export default function PastePage() {
     const [isTranslating, setIsTranslating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = async () => {
         if (!inputText.trim()) return;
 
-        const sents = splitIntoSentences(inputText.trim());
-        setSentences(sents);
-        setRawText(inputText.trim());
+        const text = inputText.trim();
+        setRawText(text);
         setShowEditor(false);
+        setError(null);
 
-        if (detectNonPortuguese(inputText)) {
-            setShowTranslate(true);
+        if (detectNonPortuguese(text)) {
+            // Try to auto-translate
+            try {
+                const res = await fetch("/api/translate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Erro na tradução.");
+
+                setSentences(splitIntoSentences(data.translatedText));
+                setShowTranslate(false);
+            } catch (err: any) {
+                console.error("Auto-translation failed:", err);
+                // Fallback to English text
+                setSentences(splitIntoSentences(text));
+                setShowTranslate(true); // they can still try manual
+                setError("A tradução automática falhou. Verifique a API na Vercel. " + (err.message || ""));
+            }
+        } else {
+            setSentences(splitIntoSentences(text));
+            setShowTranslate(false);
         }
-    }, [inputText]);
+    };
 
     const handleReset = useCallback(() => {
         setSentences([]);
@@ -40,6 +61,7 @@ export default function PastePage() {
         if (!rawText) return;
 
         setIsTranslating(true);
+        setError(null);
         try {
             const res = await fetch("/api/translate", {
                 method: "POST",
@@ -57,8 +79,8 @@ export default function PastePage() {
             const translatedSentences = splitIntoSentences(data.translatedText);
             setSentences(translatedSentences);
             setShowTranslate(false);
-        } catch (err) {
-            setError("Erro ao traduzir o texto.");
+        } catch (err: any) {
+            setError("Erro ao traduzir o texto. " + (err.message || ""));
             console.error(err);
         } finally {
             setIsTranslating(false);
@@ -79,7 +101,7 @@ export default function PastePage() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-white mb-2">Colar Texto</h1>
-                        <p className="text-gray-400">Cole ou digite o texto que você deseja ouvir.</p>
+                        <p className="text-gray-400">Cole ou digite o texto que você deseja ouvir. Traduções automáticas suportadas.</p>
                     </div>
 
                     {/* Textarea */}
