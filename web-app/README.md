@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Leitor Neural Pessoal
 
-## Getting Started
+Leitor web em Next.js para abrir URLs, texto colado e PDFs, traduzir para portugues e reproduzir audio online com voz natural.
 
-First, run the development server:
+## Stack atual
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Frontend: Next.js App Router
+- Extracao de artigo: `@mozilla/readability`
+- Extracao de PDF: `pdfjs-dist` no navegador com fallback server-side via `unpdf`
+- Traducao: endpoint compativel com LibreTranslate
+- Voz online: `node-edge-tts`
+- Rate limit opcional: Upstash Redis
+
+## Ambiente
+
+Copie os nomes abaixo para a Vercel ou para `.env.local`:
+
+```env
+LIBRETRANSLATE_URL=
+LIBRETRANSLATE_API_KEY=
+EDGE_TTS_VOICE_DEFAULT=pt-BR-FranciscaNeural
+EDGE_TTS_TIMEOUT_MS=15000
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Notas:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `LIBRETRANSLATE_URL` e obrigatorio para a traducao funcionar.
+- `LIBRETRANSLATE_API_KEY` e opcional, dependendo do provedor.
+- `EDGE_TTS_VOICE_DEFAULT` e opcional. Se faltar, o app usa `pt-BR-FranciscaNeural`.
+- `UPSTASH_*` e opcional. Sem isso, o rate limit fica desligado.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Desenvolvimento
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Abra [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Diagnostico
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Use:
 
-## Deploy on Vercel
+- `/api/debug-env` para conferir se o deploy enxerga `translation`, `speech` e `ratelimit`
+- `/api/translate` para a traducao server-side
+- `/api/tts` para gerar audio MP3 no servidor
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Validacao local
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Os fluxos abaixo foram validados neste workspace:
+
+- `npx tsc --noEmit`
+- `npm run build`
+- `node-edge-tts` gerando MP3 em Node sem depender do navegador
+
+O `npm run lint` global ainda acusa problemas antigos em `public/pdf.worker.min.mjs`, que e um arquivo gerado e nao faz parte desta migracao.

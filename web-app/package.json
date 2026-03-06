@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.3",
     "cheerio": "^1.2.0",
     "linkedom": "^0.18.12",
     "next": "16.1.6",
+    "node-edge-tts": "^1.2.10",
     "pdfjs-dist": "^5.5.207",
     "react": "19.2.3",
     "react-dom": "19.2.3",

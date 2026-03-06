@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasRateLimitConfig } from "@/lib/rateLimit";
+import {
+    describeTranslationEndpoint,
+    getSpeechServiceConfig,
+    getTranslationServiceConfig,
+} from "@/lib/cloudServices";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -7,29 +13,9 @@ function getHeader(request: NextRequest, name: string) {
     return request.headers.get(name) ?? null;
 }
 
-function describeDeepLKey(apiKey: string | undefined) {
-    if (!apiKey) {
-        return {
-            present: false,
-            length: 0,
-            tierHint: null,
-            suffix: null,
-        };
-    }
-
-    const suffix = apiKey.includes(":") ? apiKey.slice(apiKey.lastIndexOf(":")) : null;
-    const tierHint = suffix === ":fx" ? "free" : suffix === ":pro" ? "pro" : "unknown";
-
-    return {
-        present: true,
-        length: apiKey.length,
-        tierHint,
-        suffix,
-    };
-}
-
 export async function GET(request: NextRequest) {
-    const deepL = describeDeepLKey(process.env.DEEPL_API_KEY);
+    const translationConfig = getTranslationServiceConfig();
+    const speechConfig = getSpeechServiceConfig();
 
     return NextResponse.json(
         {
@@ -57,7 +43,29 @@ export async function GET(request: NextRequest) {
                 forwardedFor: getHeader(request, "x-forwarded-for"),
                 realIp: getHeader(request, "x-real-ip"),
             },
-            deepl: deepL,
+            translation: {
+                present: Boolean(translationConfig),
+                provider: translationConfig?.provider ?? null,
+                endpoint: describeTranslationEndpoint(translationConfig?.baseUrl ?? null),
+                apiKeyPresent: Boolean(translationConfig?.apiKey),
+                defaultTargetLang: translationConfig?.defaultTargetLang ?? "pt",
+            },
+            speech: {
+                present: true,
+                provider: speechConfig.provider,
+                defaultVoiceId: speechConfig.defaultVoiceId,
+                timeoutMs: speechConfig.timeoutMs,
+            },
+            ratelimit: {
+                present: hasRateLimitConfig(),
+                urlPresent: Boolean(process.env.UPSTASH_REDIS_REST_URL),
+                tokenPresent: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
+            },
+            legacy: {
+                deeplPresent: Boolean(process.env.DEEPL_API_KEY),
+                azureTranslatorPresent: Boolean(process.env.AZURE_TRANSLATOR_KEY),
+                azureSpeechPresent: Boolean(process.env.AZURE_SPEECH_KEY),
+            },
         },
         {
             headers: {

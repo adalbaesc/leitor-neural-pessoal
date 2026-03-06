@@ -125,13 +125,13 @@ export default function Home() {
             {[
               {
                 icon: "🎙️",
-                title: "Vozes Neurais",
-                desc: "Vozes naturais do Microsoft Edge para uma experiência premium.",
+                title: "Audio Online",
+                desc: "Vozes naturais geradas no servidor para funcionar no navegador e no celular.",
               },
               {
                 icon: "🌐",
                 title: "Tradução Automática",
-                desc: "Traduz textos estrangeiros para português via DeepL.",
+                desc: "Traduz textos estrangeiros para português com um serviço online configurável.",
               },
               {
                 icon: "🎤",

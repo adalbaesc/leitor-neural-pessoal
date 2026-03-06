@@ -4,15 +4,15 @@ import { useCallback, useEffect, useRef } from "react";
 
 interface KaraokeDisplayProps {
     sentences: string[];
-    currentIndex: number;
-    onSentenceClick: (index: number) => void;
+    activeRange?: { start: number; end: number } | null;
+    onSentenceClick?: (index: number) => void;
     title?: string;
     siteName?: string;
 }
 
 export default function KaraokeDisplay({
     sentences,
-    currentIndex,
+    activeRange = null,
     onSentenceClick,
     title,
     siteName,
@@ -21,20 +21,20 @@ export default function KaraokeDisplay({
 
     // Auto-scroll to active sentence
     useEffect(() => {
-        if (currentIndex < 0) return;
+        if (!activeRange) return;
 
-        const activeEl = document.getElementById(`sentence-${currentIndex}`);
+        const activeEl = document.getElementById(`sentence-${activeRange.start}`);
         if (activeEl && containerRef.current) {
             activeEl.scrollIntoView({
                 behavior: "smooth",
                 block: "center",
             });
         }
-    }, [currentIndex]);
+    }, [activeRange]);
 
     const handleClick = useCallback(
         (index: number) => {
-            onSentenceClick(index);
+            onSentenceClick?.(index);
         },
         [onSentenceClick]
     );
@@ -84,24 +84,30 @@ export default function KaraokeDisplay({
 
             {/* ── Sentences ── */}
             <div className="text-lg leading-relaxed text-gray-300 space-y-1">
-                {sentences.map((sentence, index) => (
-                    <span
-                        key={index}
-                        id={`sentence-${index}`}
-                        className={`sentence inline ${index === currentIndex ? "sentence-active" : ""
-                            }`}
-                        onClick={() => handleClick(index)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                handleClick(index);
-                            }
-                        }}
-                    >
-                        {sentence}{" "}
-                    </span>
-                ))}
+                {sentences.map((sentence, index) => {
+                    const isActive =
+                        activeRange !== null &&
+                        index >= activeRange.start &&
+                        index <= activeRange.end;
+
+                    return (
+                        <span
+                            key={index}
+                            id={`sentence-${index}`}
+                            className={`sentence inline ${isActive ? "sentence-active" : ""}`}
+                            onClick={() => handleClick(index)}
+                            role={onSentenceClick ? "button" : undefined}
+                            tabIndex={onSentenceClick ? 0 : undefined}
+                            onKeyDown={(e) => {
+                                if (onSentenceClick && (e.key === "Enter" || e.key === " ")) {
+                                    handleClick(index);
+                                }
+                            }}
+                        >
+                            {sentence}{" "}
+                        </span>
+                    );
+                })}
             </div>
         </div>
     );
