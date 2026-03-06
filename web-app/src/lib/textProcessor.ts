@@ -42,36 +42,57 @@ export function stripHtml(html: string): string {
 }
 
 /**
- * Detect if text is likely in a non-Portuguese language.
- * Simple heuristic: looks for common non-Portuguese patterns.
+ * Detect if text needs translation.
+ * Returns true if text is NOT in Portuguese or Spanish.
+ * Uses multiple language markers to detect various languages.
  */
-export function detectNonPortuguese(text: string): boolean {
-    if (!text) return false;
+export function needsTranslation(text: string): boolean {
+    if (!text || text.length < 50) return false;
 
-    const sample = text.substring(0, 500).toLowerCase();
+    const sample = text.substring(0, 1000).toLowerCase();
 
-    // Common English words that rarely appear in Portuguese
-    const englishMarkers = [
-        " the ",
-        " and ",
-        " that ",
-        " with ",
-        " from ",
-        " this ",
-        " have ",
-        " been ",
-        " which ",
-        " would ",
-        " could ",
-        " should ",
-        " their ",
+    // ── Portuguese markers ──
+    const ptMarkers = [
+        " que ", " não ", " com ", " uma ", " para ", " mais ", " como ",
+        " dos ", " das ", " são ", " tem ", " foi ", " está ", " pelo ",
+        " pela ", " isso ", " muito ", " ainda ", " também ", " quando ",
+        " pode ", " esse ", " essa ", " entre ", " depois ", " outro ",
+        " ção ", " ções ", " mente ", " ência ", " sobre ",
     ];
 
-    let englishCount = 0;
-    for (const marker of englishMarkers) {
-        if (sample.includes(marker)) englishCount++;
+    // ── Spanish markers ──
+    const esMarkers = [
+        " que ", " con ", " una ", " para ", " más ", " como ",
+        " los ", " las ", " son ", " tiene ", " fue ", " está ",
+        " por ", " esto ", " muy ", " también ", " cuando ",
+        " puede ", " este ", " esta ", " entre ", " después ",
+        " otro ", " ción ", " mente ", " sobre ", " pero ",
+        " del ", " hay ",
+    ];
+
+    // Count PT/ES markers
+    let ptCount = 0;
+    let esCount = 0;
+
+    for (const marker of ptMarkers) {
+        if (sample.includes(marker)) ptCount++;
+    }
+    for (const marker of esMarkers) {
+        if (sample.includes(marker)) esCount++;
     }
 
-    // If 3+ English markers found, likely English
-    return englishCount >= 3;
+    // If PT or ES markers are dominant, no translation needed
+    if (ptCount >= 4 || esCount >= 4) {
+        return false;
+    }
+
+    // If very few PT/ES markers, it's likely a foreign language → needs translation
+    return true;
+}
+
+/**
+ * @deprecated Use needsTranslation() instead
+ */
+export function detectNonPortuguese(text: string): boolean {
+    return needsTranslation(text);
 }

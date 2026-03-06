@@ -10,9 +10,6 @@ interface ReaderViewProps {
     siteName?: string;
     isLoading?: boolean;
     error?: string | null;
-    onTranslate?: () => void;
-    isTranslating?: boolean;
-    showTranslateButton?: boolean;
     autoPlay?: boolean;
 }
 
@@ -22,9 +19,6 @@ export default function ReaderView({
     siteName,
     isLoading = false,
     error = null,
-    onTranslate,
-    isTranslating = false,
-    showTranslateButton = false,
     autoPlay = true,
 }: ReaderViewProps) {
     const {
@@ -45,15 +39,6 @@ export default function ReaderView({
 
     const [showVoicePanel, setShowVoicePanel] = useState(false);
     const hasAutoPlayed = useRef(false);
-    const hasAutoTranslated = useRef(false);
-
-    // ── Auto-translate when foreign text is detected ──
-    useEffect(() => {
-        if (showTranslateButton && onTranslate && !hasAutoTranslated.current && !isTranslating) {
-            hasAutoTranslated.current = true;
-            onTranslate();
-        }
-    }, [showTranslateButton, onTranslate, isTranslating]);
 
     // ── Auto-play when sentences are ready ──
     useEffect(() => {
@@ -69,8 +54,7 @@ export default function ReaderView({
     // Reset auto-play flag when sentences change (new content)
     useEffect(() => {
         hasAutoPlayed.current = false;
-        hasAutoTranslated.current = false;
-    }, [title]); // Reset when title changes (new content loaded)
+    }, [title]);
 
     const handlePlay = useCallback(() => {
         if (isPaused) {
@@ -101,14 +85,14 @@ export default function ReaderView({
     const otherVoices = voices.filter((v) => !v.lang.startsWith("pt"));
 
     // ── Loading State ──
-    if (isLoading || isTranslating) {
+    if (isLoading) {
         return (
             <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
                 <div className="space-y-4 animate-fade-in-up">
                     <div className="skeleton h-8 w-3/4" />
                     <div className="skeleton h-4 w-1/4" />
                     <div className="text-sm text-gray-400 mt-2">
-                        {isTranslating ? "Traduzindo automaticamente..." : "Carregando conteúdo..."}
+                        Carregando conteúdo...
                     </div>
                     <div className="mt-8 space-y-3">
                         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
