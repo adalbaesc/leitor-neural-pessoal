@@ -161,21 +161,21 @@ export default function KaraokeDisplay({
     }
 
     return (
-        <div ref={containerRef} className="flex flex-col h-full overflow-y-auto scroll-smooth max-w-2xl mx-auto px-6">
+        <div ref={containerRef} className="flex flex-col h-full overflow-y-auto scroll-smooth px-4 sm:px-6">
             {title && (
-                <header className="sticky top-0 bg-[#0b0920] z-10 pb-2 border-b border-neural-500/20 px-2 pt-2 flex-shrink-0">
+                <header className="sticky top-0 bg-[#0b0920] z-10 pb-2 border-b border-neural-500/20 pt-1 flex-shrink-0">
                     {siteName && (
                         <p className="text-xs text-neural-400 uppercase tracking-wider font-semibold">
                             {siteName}
                         </p>
                     )}
-                    <h1 className="text-lg font-bold text-white leading-tight truncate">
+                    <h1 className="text-xl font-bold text-white leading-tight truncate">
                         {title}
                     </h1>
                 </header>
             )}
 
-            <div className="flex-1 text-base leading-7 text-gray-300 px-2 py-3">
+            <div className="flex-1 text-lg leading-7 text-gray-300 py-2">
                 {renderParagraphs()}
             </div>
         </div>

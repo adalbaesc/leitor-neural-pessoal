@@ -194,9 +194,9 @@ export default function ReaderView({
     }
 
     return (
-        <div className="flex flex-col h-[calc(100vh-140px)]">
+        <div className="flex flex-col h-[calc(100vh-100px)] w-full sm:w-11/12 md:w-4/5 lg:w-1/2 mx-auto px-4">
             {notice && (
-                <div className="px-4 pt-3 pb-2 flex-shrink-0">
+                <div className="px-4 pt-2 pb-1 flex-shrink-0">
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 animate-fade-in-up">
                         <div className="flex items-start gap-2">
                             <div className="w-6 h-6 rounded-md bg-amber-500/20 flex items-center justify-center flex-shrink-0">

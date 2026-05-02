@@ -152,13 +152,13 @@ export default function PastePage() {
                         </p>
                     </div>
 
-                    <textarea
+<textarea
                         id="text-input"
                         value={inputText}
                         onChange={(event) => setInputText(event.target.value)}
                         placeholder="Cole seu texto aqui..."
-                        rows={16}
-                        className="w-full h-64 bg-surface border border-neural-500/20 rounded-2xl px-5 py-4 text-white placeholder-gray-500 focus:border-neural-500 focus:outline-none transition-colors text-base leading-relaxed resize-none"
+                        rows={20}
+                        className="w-full h-80 bg-surface border border-neural-500/20 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:border-neural-500 focus:outline-none transition-colors text-base leading-relaxed resize-none"
                     />
 
                     <div className="flex items-center justify-between mt-4">
