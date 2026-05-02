@@ -18,8 +18,8 @@ export const CLOUD_VOICE_OPTIONS: CloudVoiceOption[] = [
 ];
 
 export const FALLBACK_VOICE_ID = "pt-BR-FranciscaNeural";
-export const MAX_AUDIO_CHUNK_SENTENCES = 10;
-export const MAX_AUDIO_CHUNK_CHARS = 1200;
+export const MAX_AUDIO_CHUNK_SENTENCES = 1;
+export const MAX_AUDIO_CHUNK_CHARS = 150;
 export const MAX_TRANSLATION_CHUNK_CHARS = 4000;
 
 export function getDefaultVoiceId(configuredVoiceId: string | undefined) {

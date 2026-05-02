@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
-import { splitIntoSentences, detectNonPortuguese } from "@/lib/textProcessor";
+import { splitIntoSentences, detectNonPortuguese, parseStructuredContent, type Paragraph } from "@/lib/textProcessor";
 
 function isPdfFile(file: File) {
     const normalizedType = file.type.toLowerCase();
@@ -19,6 +19,80 @@ function isPdfFile(file: File) {
 
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : "";
+}
+
+const PAGE_NUMBER_REGEX = /^(?:page|pág|pag|pg|\.?\s*)[\s.]*\d+[\s.]*/i;
+const FOOTER_PAGE_REGEX = /^\d+[\s.]*(?:of|de|from)[\s.]*\d+$/i;
+const HEADER_PAGE_REGEX = /^(?:page|pág|pag|pg)\s*\d+[\s.]*(?:of|de|from)\s*\d+$/i;
+const SINGLE_DIGIT_REGEX = /^\s*\d+\s*$/;
+const ROMAN_NUMERAL_REGEX = /^(?:i|v|x|l|c|d|m)+$/i;
+
+function isNoiseLine(line: string, minLength: number = 3): boolean {
+    const trimmed = line.trim();
+    
+    if (!trimmed || trimmed.length < minLength) {
+        return true;
+    }
+    
+    if (PAGE_NUMBER_REGEX.test(trimmed)) {
+        return true;
+    }
+    
+    if (FOOTER_PAGE_REGEX.test(trimmed)) {
+        return true;
+    }
+    
+    if (HEADER_PAGE_REGEX.test(trimmed)) {
+        return true;
+    }
+    
+    if (SINGLE_DIGIT_REGEX.test(trimmed)) {
+        return true;
+    }
+    
+    if (ROMAN_NUMERAL_REGEX.test(trimmed)) {
+        return true;
+    }
+    
+    return false;
+}
+
+function cleanPdfText(text: string): string {
+    const lines = text.split(/\n/);
+    const cleanedLines: string[] = [];
+    const seenLines = new Set<string>();
+    
+    for (const line of lines) {
+        const trimmed = line.trim();
+        
+        if (!trimmed) {
+            if (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] !== "") {
+                cleanedLines.push("");
+            }
+            continue;
+        }
+        
+        if (isNoiseLine(trimmed)) {
+            continue;
+        }
+        
+        if (seenLines.has(trimmed.toLowerCase()) && trimmed.length < 50) {
+            continue;
+        }
+        
+        seenLines.add(trimmed.toLowerCase());
+        cleanedLines.push(trimmed);
+    }
+    
+    while (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1] === "") {
+        cleanedLines.pop();
+    }
+    
+    while (cleanedLines.length > 0 && cleanedLines[0] === "") {
+        cleanedLines.shift();
+    }
+    
+    return cleanedLines.join("\n\n");
 }
 
 async function extractPdfTextInBrowser(file: File) {
@@ -110,6 +184,7 @@ function getPdfProcessingError(detail: string) {
 
 export default function PdfPage() {
     const [sentences, setSentences] = useState<string[]>([]);
+    const [paragraphs, setParagraphs] = useState<Paragraph[]>([]);
     const [rawText, setRawText] = useState("");
     const [fileName, setFileName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -151,16 +226,19 @@ export default function PdfPage() {
                 return;
             }
 
-            setRawText(cleanText);
+            const cleanedText = cleanPdfText(cleanText);
+            setRawText(cleanedText);
 
-            if (detectNonPortuguese(cleanText)) {
+            const structured = parseStructuredContent(cleanedText);
+
+            if (detectNonPortuguese(cleanedText)) {
                 setStatusMessage("Traduzindo para portugues...");
 
                 try {
                     const response = await fetch("/api/translate", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: cleanText }),
+                        body: JSON.stringify({ text: cleanedText }),
                     });
                     const data = await response.json();
 
@@ -168,12 +246,15 @@ export default function PdfPage() {
                         throw new Error(data.error || "Erro na traducao.");
                     }
 
-                    setSentences(splitIntoSentences(data.translatedText));
+                    const translatedStructured = parseStructuredContent(data.translatedText);
+                    setSentences(translatedStructured.flatSentences);
+                    setParagraphs(translatedStructured.paragraphs);
                     setShowTranslate(false);
                     setTranslationSuccessToken((current) => current + 1);
                 } catch (translationError: unknown) {
                     console.error("Auto-translation failed:", translationError);
-                    setSentences(splitIntoSentences(cleanText));
+                    setSentences(structured.flatSentences);
+                    setParagraphs(structured.paragraphs);
                     setShowTranslate(true);
                     setWarning(
                         "A traducao automatica falhou. O texto original foi carregado para leitura. " +
@@ -181,7 +262,8 @@ export default function PdfPage() {
                     );
                 }
             } else {
-                setSentences(splitIntoSentences(cleanText));
+                setSentences(structured.flatSentences);
+                setParagraphs(structured.paragraphs);
                 setShowTranslate(false);
             }
         } catch (processingError) {
@@ -233,6 +315,7 @@ export default function PdfPage() {
 
     const handleReset = () => {
         setSentences([]);
+        setParagraphs([]);
         setRawText("");
         setFileName("");
         setError(null);
@@ -268,7 +351,9 @@ export default function PdfPage() {
                 return;
             }
 
-            setSentences(splitIntoSentences(data.translatedText));
+            const translatedStructured = parseStructuredContent(data.translatedText);
+            setSentences(translatedStructured.flatSentences);
+            setParagraphs(translatedStructured.paragraphs);
             setShowTranslate(false);
             setTranslationSuccessToken((current) => current + 1);
             if (restartPlayback) {
@@ -406,6 +491,7 @@ export default function PdfPage() {
                     ) : (
                         <ReaderView
                             sentences={sentences}
+                            paragraphs={paragraphs}
                             title={fileName || "Documento PDF"}
                             isLoading={false}
                             error={error}

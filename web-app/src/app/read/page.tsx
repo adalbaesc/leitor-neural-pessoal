@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
-import { splitIntoSentences, stripHtml, detectNonPortuguese } from "@/lib/textProcessor";
+import { splitIntoSentences, stripHtml, detectNonPortuguese, parseStructuredContent, type Paragraph } from "@/lib/textProcessor";
 
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : "";
@@ -15,6 +15,7 @@ function ReadPageContent() {
     const urlParam = searchParams.get("url");
 
     const [sentences, setSentences] = useState<string[]>([]);
+    const [paragraphs, setParagraphs] = useState<Paragraph[]>([]);
     const [rawText, setRawText] = useState("");
     const [title, setTitle] = useState("");
     const [siteName, setSiteName] = useState("");
@@ -49,9 +50,11 @@ function ReadPageContent() {
             }
 
             const cleanText = stripHtml(data.content || data.htmlContent || "");
+            const structured = parseStructuredContent(cleanText);
             setTitle(data.title || "");
             setSiteName(data.siteName || "");
             setRawText(cleanText);
+            setParagraphs(structured.paragraphs);
 
             if (detectNonPortuguese(cleanText)) {
                 try {
@@ -66,12 +69,14 @@ function ReadPageContent() {
                         throw new Error(translationData.error || "Erro na traducao.");
                     }
 
-                    setSentences(splitIntoSentences(translationData.translatedText));
+                    const translatedStructured = parseStructuredContent(translationData.translatedText);
+                    setSentences(translatedStructured.flatSentences);
+                    setParagraphs(translatedStructured.paragraphs);
                     setShowTranslate(false);
                     setTranslationSuccessToken((current) => current + 1);
                 } catch (translationError: unknown) {
                     console.error("Auto-translation failed:", translationError);
-                    setSentences(splitIntoSentences(cleanText));
+                    setSentences(structured.flatSentences);
                     setShowTranslate(true);
                     setWarning(
                         "A traducao automatica falhou. O texto original foi carregado para leitura. " +
@@ -79,7 +84,7 @@ function ReadPageContent() {
                     );
                 }
             } else {
-                setSentences(splitIntoSentences(cleanText));
+                setSentences(structured.flatSentences);
                 setShowTranslate(false);
             }
         } catch (fetchError) {
@@ -126,7 +131,9 @@ function ReadPageContent() {
                 return;
             }
 
-            setSentences(splitIntoSentences(data.translatedText));
+            const translatedStructured = parseStructuredContent(data.translatedText);
+            setSentences(translatedStructured.flatSentences);
+            setParagraphs(translatedStructured.paragraphs);
             setShowTranslate(false);
             setTranslationSuccessToken((current) => current + 1);
             if (restartPlayback) {
@@ -188,6 +195,7 @@ function ReadPageContent() {
 
             <ReaderView
                 sentences={sentences}
+                paragraphs={paragraphs}
                 title={title}
                 siteName={siteName}
                 isLoading={isLoading}

@@ -44,12 +44,20 @@ function getSpeechErrorMessage(error: unknown) {
         return "Falha ao gerar o audio agora.";
     }
 
-    if (message.includes("timed out")) {
-        return "Servico de voz online indisponivel no momento.";
+    if (message.includes("timed out") || message.includes("timeout")) {
+        return "Servico de voz online indisponivel no momento (timeout).";
     }
 
     if (message.includes("unexpected server response")) {
         return "Servico de voz online indisponivel no momento.";
+    }
+
+    if (message.includes("econnrefused") || message.includes("connect")) {
+        return "Nao foi possivel conectar ao servico de voz.";
+    }
+
+    if (message.includes("fetch failed") || message.includes("network")) {
+        return "Erro de rede ao conectar ao servico de voz.";
     }
 
     return "Falha ao gerar o audio agora.";

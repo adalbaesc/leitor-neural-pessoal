@@ -1,27 +1,88 @@
 /**
- * Utility: Split text into sentences for karaoke display.
- * Uses regex to split on sentence-ending punctuation while preserving the punctuation.
+ * Represents a paragraph containing sentences.
  */
-export function splitIntoSentences(text: string): string[] {
+export interface Paragraph {
+    sentences: string[];
+    isEmpty: boolean;
+}
+
+/**
+ * Represents the structured content with paragraphs.
+ */
+export interface StructuredContent {
+    paragraphs: Paragraph[];
+    flatSentences: string[];
+}
+
+const SENTENCE_END_PUNCTUATION = /[.!?…]+[\s]?/g;
+const PARAGRAPH_SEPARATORS = /\n\s*\n|\r\n\s*\r\n/g;
+
+function splitIntoSentencesArray(text: string): string[] {
     if (!text || typeof text !== "string") return [];
 
-    // Clean extra whitespace
-    const cleaned = text
-        .replace(/\s+/g, " ")
-        .replace(/\n+/g, " ")
-        .trim();
-
+    const cleaned = text.replace(/\s+/g, " ").trim();
     if (!cleaned) return [];
 
-    // Split on sentence-ending punctuation (., !, ?, ;) followed by space or end
-    // Also handle ellipsis (...) and other punctuation
     const raw = cleaned.match(/[^.!?;]+[.!?;]+[\s]?|[^.!?;]+$/g);
-
     if (!raw) return [cleaned];
 
-    return raw
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
+    return raw.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+function normalizeText(text: string): string {
+    return text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\t/g, " ")
+        .replace(/\u00A0/g, " ")
+        .trim();
+}
+
+function cleanParagraphText(text: string): string {
+    return text
+        .replace(/\s+/g, " ")
+        .replace(/^[\s.,;:!?'")}\]–—•]+|[\s.,;:!?'")}\]–—•]+$/g, "")
+        .trim();
+}
+
+export function parseStructuredContent(text: string): StructuredContent {
+    const normalized = normalizeText(text);
+
+    if (!normalized) {
+        return { paragraphs: [], flatSentences: [] };
+    }
+
+    const paragraphTexts = normalized.split(PARAGRAPH_SEPARATORS);
+    const paragraphs: Paragraph[] = [];
+
+    for (const paraText of paragraphTexts) {
+        const cleaned = cleanParagraphText(paraText);
+
+        if (!cleaned) {
+            paragraphs.push({ sentences: [], isEmpty: true });
+            continue;
+        }
+
+        const sentences = splitIntoSentencesArray(cleaned);
+
+        if (sentences.length > 0) {
+            paragraphs.push({ sentences, isEmpty: false });
+        }
+    }
+
+    const flatSentences = paragraphs
+        .filter((p) => !p.isEmpty)
+        .flatMap((p) => p.sentences);
+
+    return { paragraphs, flatSentences };
+}
+
+export function splitIntoSentences(text: string): string[] {
+    return parseStructuredContent(text).flatSentences;
+}
+
+export function hasParagraphs(text: string): boolean {
+    return text.includes("\n\n") || text.includes("\r\n\r\n");
 }
 
 /**

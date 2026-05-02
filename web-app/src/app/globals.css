@@ -36,14 +36,14 @@ body {
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(99, 102, 241, 0.05);
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(99, 102, 241, 0.3);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.5);
@@ -52,19 +52,32 @@ body {
 /* ── Karaoke Highlight ── */
 .sentence {
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  color: #9ca3af;
 }
 
 .sentence:hover {
-  background-color: rgba(99, 102, 241, 0.1);
+  background-color: rgba(99, 102, 241, 0.2);
+  color: #d1d5db;
 }
 
 .sentence-active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(6, 182, 212, 0.2));
-  color: #ffffff;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  background: #f97316;
+  color: #000000;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.5);
+}
+
+.sentence-clicked {
+  background: #22c55e;
+  color: #000000;
+  font-weight: 600;
+  padding: 2px 5px;
+  border-radius: 4px;
 }
 
 /* ── Glassmorphism Controls ── */

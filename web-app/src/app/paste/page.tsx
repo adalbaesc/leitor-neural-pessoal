@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import ReaderView from "@/components/ReaderView";
-import { splitIntoSentences, detectNonPortuguese } from "@/lib/textProcessor";
+import { splitIntoSentences, detectNonPortuguese, parseStructuredContent, type Paragraph } from "@/lib/textProcessor";
 
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : "";
@@ -11,6 +11,7 @@ function getErrorMessage(error: unknown) {
 
 export default function PastePage() {
     const [sentences, setSentences] = useState<string[]>([]);
+    const [paragraphs, setParagraphs] = useState<Paragraph[]>([]);
     const [rawText, setRawText] = useState("");
     const [inputText, setInputText] = useState("");
     const [showEditor, setShowEditor] = useState(true);
@@ -34,6 +35,8 @@ export default function PastePage() {
         setWarning(null);
         setContentVersion((current) => current + 1);
 
+        const structured = parseStructuredContent(text);
+
         if (detectNonPortuguese(text)) {
             try {
                 const res = await fetch("/api/translate", {
@@ -47,12 +50,15 @@ export default function PastePage() {
                     throw new Error(data.error || "Erro na traducao.");
                 }
 
-                setSentences(splitIntoSentences(data.translatedText));
+                const translatedStructured = parseStructuredContent(data.translatedText);
+                setSentences(translatedStructured.flatSentences);
+                setParagraphs(translatedStructured.paragraphs);
                 setShowTranslate(false);
                 setTranslationSuccessToken((current) => current + 1);
             } catch (translationError: unknown) {
                 console.error("Auto-translation failed:", translationError);
-                setSentences(splitIntoSentences(text));
+                setSentences(structured.flatSentences);
+                setParagraphs(structured.paragraphs);
                 setShowTranslate(true);
                 setWarning(
                     "A traducao automatica falhou. O texto original foi carregado para leitura. " +
@@ -60,13 +66,15 @@ export default function PastePage() {
                 );
             }
         } else {
-            setSentences(splitIntoSentences(text));
+            setSentences(structured.flatSentences);
+            setParagraphs(structured.paragraphs);
             setShowTranslate(false);
         }
     };
 
     const handleReset = useCallback(() => {
         setSentences([]);
+        setParagraphs([]);
         setRawText("");
         setInputText("");
         setShowEditor(true);
@@ -99,7 +107,9 @@ export default function PastePage() {
                 return;
             }
 
-            setSentences(splitIntoSentences(data.translatedText));
+            const translatedStructured = parseStructuredContent(data.translatedText);
+            setSentences(translatedStructured.flatSentences);
+            setParagraphs(translatedStructured.paragraphs);
             setShowTranslate(false);
             setTranslationSuccessToken((current) => current + 1);
             if (restartPlayback) {
@@ -147,8 +157,8 @@ export default function PastePage() {
                         value={inputText}
                         onChange={(event) => setInputText(event.target.value)}
                         placeholder="Cole seu texto aqui..."
-                        rows={12}
-                        className="w-full bg-surface border border-neural-500/20 rounded-2xl px-5 py-4 text-white placeholder-gray-500 focus:border-neural-500 focus:outline-none transition-colors text-sm leading-relaxed resize-y min-h-[200px]"
+                        rows={16}
+                        className="w-full h-64 bg-surface border border-neural-500/20 rounded-2xl px-5 py-4 text-white placeholder-gray-500 focus:border-neural-500 focus:outline-none transition-colors text-base leading-relaxed resize-none"
                     />
 
                     <div className="flex items-center justify-between mt-4">
@@ -189,6 +199,7 @@ export default function PastePage() {
 
                     <ReaderView
                         sentences={sentences}
+                        paragraphs={paragraphs}
                         title="Texto Colado"
                         isLoading={false}
                         error={error}

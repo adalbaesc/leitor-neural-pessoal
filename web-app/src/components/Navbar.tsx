@@ -4,8 +4,8 @@ import Link from "next/link";
 
 export default function Navbar() {
     return (
-        <nav className="glass sticky top-0 z-50 px-4 sm:px-8 py-3">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <nav className="glass sticky top-0 z-50 px-4 py-2">
+            <div className="max-w-6xl mx-auto flex items-center justify-between">
                 {/* ── Logo ── */}
                 <Link href="/" className="flex items-center gap-2.5 group">
                     <div className="w-9 h-9 rounded-xl bg-linear-to-br from-neural-500 to-accent-cyan flex items-center justify-center transition-transform group-hover:scale-105">
@@ -50,7 +50,7 @@ export default function Navbar() {
                     </Link>
                     <Link
                         href="/pdf"
-                        className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-neural-500/10 transition-all"
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold text-accent-cyan hover:text-white hover:bg-neural-500/10 transition-all"
                     >
                         PDF
                     </Link>

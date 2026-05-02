@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type ReactElement } from "react";
+import type { Paragraph } from "@/lib/textProcessor";
 
 interface KaraokeDisplayProps {
     sentences: string[];
+    paragraphs?: Paragraph[];
     activeRange?: { start: number; end: number } | null;
     onSentenceClick?: (index: number) => void;
     title?: string;
@@ -12,18 +14,19 @@ interface KaraokeDisplayProps {
 
 export default function KaraokeDisplay({
     sentences,
+    paragraphs,
     activeRange = null,
     onSentenceClick,
     title,
     siteName,
 }: KaraokeDisplayProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const sentenceRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
 
-    // Auto-scroll to active sentence
     useEffect(() => {
         if (!activeRange) return;
 
-        const activeEl = document.getElementById(`sentence-${activeRange.start}`);
+        const activeEl = sentenceRefs.current.get(activeRange.start);
         if (activeEl && containerRef.current) {
             activeEl.scrollIntoView({
                 behavior: "smooth",
@@ -38,6 +41,98 @@ export default function KaraokeDisplay({
         },
         [onSentenceClick]
     );
+
+    const setSentenceRef = useCallback((index: number, el: HTMLSpanElement | null) => {
+        if (el) {
+            sentenceRefs.current.set(index, el);
+        } else {
+            sentenceRefs.current.delete(index);
+        }
+    }, []);
+
+    const getGlobalSentenceIndex = (paraIndex: number, sentenceIndex: number): number => {
+        if (!paragraphs) return sentenceIndex;
+        
+        let count = 0;
+        for (let i = 0; i < paraIndex; i++) {
+            if (!paragraphs[i].isEmpty) {
+                count += paragraphs[i].sentences.length;
+            }
+        }
+        return count + sentenceIndex;
+    };
+
+    const isActive = (globalIndex: number): boolean => {
+        if (!activeRange) return false;
+        return globalIndex >= activeRange.start && globalIndex <= activeRange.end;
+    };
+
+    const renderParagraphs = () => {
+        if (!paragraphs || paragraphs.length === 0) {
+            return sentences.map((sentence, index) => (
+                <span
+                    key={index}
+                    ref={(el) => setSentenceRef(index, el)}
+                    id={`sentence-${index}`}
+                    className={`sentence inline ${isActive(index) ? "sentence-active" : ""}`}
+                    onClick={() => handleClick(index)}
+                    role={onSentenceClick ? "button" : undefined}
+                    tabIndex={onSentenceClick ? 0 : undefined}
+                    onKeyDown={(e) => {
+                        if (onSentenceClick && (e.key === "Enter" || e.key === " ")) {
+                            handleClick(index);
+                        }
+                    }}
+                >
+                    {sentence}{" "}
+                </span>
+            ));
+        }
+
+        const elements: ReactElement[] = [];
+        let globalIndex = 0;
+
+        for (let paraIndex = 0; paraIndex < paragraphs.length; paraIndex++) {
+            const paragraph = paragraphs[paraIndex];
+
+            if (paragraph.isEmpty) {
+                elements.push(<div key={`para-${paraIndex}`} className="h-4" />);
+                continue;
+            }
+
+            elements.push(
+                <p key={`para-${paraIndex}`} className="mb-4">
+                    {paragraph.sentences.map((sentence, sentenceIndex) => {
+                        const idx = getGlobalSentenceIndex(paraIndex, sentenceIndex);
+                        const isCurrentlyActive = isActive(idx);
+
+                        return (
+                            <span
+                                key={idx}
+                                ref={(el) => setSentenceRef(idx, el)}
+                                id={`sentence-${idx}`}
+                                className={`sentence inline ${isCurrentlyActive ? "sentence-active" : ""}`}
+                                onClick={() => handleClick(idx)}
+                                role={onSentenceClick ? "button" : undefined}
+                                tabIndex={onSentenceClick ? 0 : undefined}
+                                onKeyDown={(e) => {
+                                    if (onSentenceClick && (e.key === "Enter" || e.key === " ")) {
+                                        handleClick(idx);
+                                    }
+                                }}
+                            >
+                                {sentence}{" "}
+                            </span>
+                        );
+                    })}
+                </p>
+            );
+
+            globalIndex += paragraph.sentences.length;
+        }
+
+        return elements;
+    };
 
     if (sentences.length === 0) {
         return (
@@ -66,48 +161,22 @@ export default function KaraokeDisplay({
     }
 
     return (
-        <div ref={containerRef} className="max-w-3xl mx-auto px-4 sm:px-8 pb-28 pt-6">
-            {/* ── Article Header ── */}
+        <div ref={containerRef} className="flex flex-col h-full overflow-y-auto scroll-smooth max-w-2xl mx-auto px-6">
             {title && (
-                <header className="mb-8 animate-fade-in-up">
+                <header className="sticky top-0 bg-[#0b0920] z-10 pb-2 border-b border-neural-500/20 px-2 pt-2 flex-shrink-0">
                     {siteName && (
-                        <p className="text-xs text-neural-400 uppercase tracking-wider mb-2 font-semibold">
+                        <p className="text-xs text-neural-400 uppercase tracking-wider font-semibold">
                             {siteName}
                         </p>
                     )}
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
+                    <h1 className="text-lg font-bold text-white leading-tight truncate">
                         {title}
                     </h1>
-                    <div className="mt-4 h-px bg-linear-to-r from-neural-500/50 via-accent-cyan/30 to-transparent" />
                 </header>
             )}
 
-            {/* ── Sentences ── */}
-            <div className="text-lg leading-relaxed text-gray-300 space-y-1">
-                {sentences.map((sentence, index) => {
-                    const isActive =
-                        activeRange !== null &&
-                        index >= activeRange.start &&
-                        index <= activeRange.end;
-
-                    return (
-                        <span
-                            key={index}
-                            id={`sentence-${index}`}
-                            className={`sentence inline ${isActive ? "sentence-active" : ""}`}
-                            onClick={() => handleClick(index)}
-                            role={onSentenceClick ? "button" : undefined}
-                            tabIndex={onSentenceClick ? 0 : undefined}
-                            onKeyDown={(e) => {
-                                if (onSentenceClick && (e.key === "Enter" || e.key === " ")) {
-                                    handleClick(index);
-                                }
-                            }}
-                        >
-                            {sentence}{" "}
-                        </span>
-                    );
-                })}
+            <div className="flex-1 text-base leading-7 text-gray-300 px-2 py-3">
+                {renderParagraphs()}
             </div>
         </div>
     );
